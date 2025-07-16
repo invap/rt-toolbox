@@ -14,15 +14,14 @@ from rt_file_tools.logging_configuration import (
 )
 from rt_file_tools.rabbitmq_server_config import rabbitmq_server_config
 from rt_file_tools.rabbitmq_utility import (
-    rabbitmq_connect_to_server
+    rabbitmq_connect_to_server, RabbitMQError
 )
 from rt_file_tools.utility import is_valid_file_with_extension_nex, is_valid_file_with_extension
 
 
 # Errors:
-# -1: Logging infrastructure error
-# -2: Input file error
-# -3: RabbitMQ server setup error
+# -1: Output file error
+# -2: RabbitMQ server setup error
 
 def main():
     # Signal handling flags
@@ -113,7 +112,11 @@ def main():
     #Start event acquisition from the file
     start_time_epoch = time.time()
     with (open(args.src_file, "r") as input_file):
-        connection, rabbitmq_channel = rabbitmq_connect_to_server()
+        try:
+            connection, channel = rabbitmq_connect_to_server()
+        except RabbitMQError:
+            logging.critical(f"Error setting up connection to RabbitMQ server.")
+            exit(-2)
         # Start publishing events to the RabbitMQ server
         logging.info(f"Start publishing events to RabbitMQ server at {args.host}:{args.port}.")
         for line in input_file:
@@ -135,7 +138,7 @@ def main():
                 logging.info(f"Acquired events for {config.timeout} seconds. Timeout reached.")
                 break
             # Publish event at RabbitMQ server
-            rabbitmq_channel.basic_publish(
+            channel.basic_publish(
                 exchange=rabbitmq_server_config.exchange,
                 routing_key='events',
                 body=line,
@@ -146,7 +149,7 @@ def main():
             cleaned_event = line.rstrip('\n\r')
             logging.log(LoggingLevel.EVENT, f"Sent event: {cleaned_event}.")
         # Always attempt to send poison pill if the channel is available
-        rabbitmq_channel.basic_publish(
+        channel.basic_publish(
             exchange=rabbitmq_server_config.exchange,
             routing_key='events',
             body='',

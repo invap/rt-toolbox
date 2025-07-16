@@ -13,12 +13,15 @@ from rt_file_tools.logging_configuration import (
 )
 from rt_file_tools.rabbitmq_server_config import rabbitmq_server_config
 from rt_file_tools.rabbitmq_utility import (
-    setup_rabbitmq)
+    setup_rabbitmq, RabbitMQError)
 from rt_file_tools.utility import (
     is_valid_file_with_extension_nex,
 
 )
 
+# Errors:
+# -1: Output file error
+# -2: RabbitMQ server setup error
 
 def main():
     # Signal handling flags
@@ -116,7 +119,11 @@ def main():
         # Control variables
         poison_received = False
         # Setup RabbitMQ server
-        connection, channel, queue_name = setup_rabbitmq()
+        try:
+            connection, channel, queue_name = setup_rabbitmq()
+        except RabbitMQError:
+            logging.critical(f"Error setting up connection to RabbitMQ server.")
+            exit(-2)
         # Start getting events to the RabbitMQ server
         logging.info(f"Start getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         while not poison_received and not signal_flags['stop']:
