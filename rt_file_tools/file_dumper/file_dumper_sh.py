@@ -150,7 +150,7 @@ def main():
                 # Process message
                 if properties.headers and properties.headers.get('termination'):
                     # Poison pill received
-                    logging.log(LoggingLevel.EVENT, f"Poison pill received.")
+                    logging.info(f"Poison pill received.")
                     poison_received = True
                 else:
                     last_message_time = time.time()
