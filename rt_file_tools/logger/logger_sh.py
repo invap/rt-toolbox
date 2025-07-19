@@ -51,7 +51,7 @@ def main():
         description="Writes a log file with with the messages got from a RabbitMQ server.",
         epilog = "Example: python -m rt_file_tools.logger.logger_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
     )
-    parser.add_argument('dest_file', help='Event report file name.')
+    parser.add_argument('dest_file', help='Log file name.')
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ logging server host.')
     parser.add_argument('--port', type=int, default=5672, help='RabbitMQ logging server port.')
     parser.add_argument('--user', default='guest', help='RabbitMQ logging server user.')
