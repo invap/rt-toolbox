@@ -146,7 +146,7 @@ def main():
             if signal_flags['pause']:
                 logging.info("SIGTSTP received. Pausing the event acquisition process.")
                 while signal_flags['pause'] and not signal_flags['stop']:
-                    signal.pause()  # Efficiently wait for signals
+                    time.sleep(1)  # Efficiently wait for signals
                 if signal_flags['stop']:
                     logging.info("SIGINT received. Stopping the event acquisition process.")
                     poison_received = True

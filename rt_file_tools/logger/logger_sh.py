@@ -147,7 +147,7 @@ def main():
             if signal_flags['pause']:
                 logging.info("SIGTSTP received. Pausing the event acquisition process.")
                 while signal_flags['pause'] and not signal_flags['stop']:
-                    signal.pause()  # Efficiently wait for signals
+                    time.sleep(1)  # Efficiently wait for signals
                 if signal_flags['stop']:
                     logging.info("SIGINT received. Stopping the event acquisition process.")
                     poison_received = True
@@ -175,7 +175,7 @@ def main():
                     output_file.write(f"{timestamp} : {event}\n")
                     output_file.flush()
                     cleaned_event = event.rstrip('\n\r')
-                    logging.log(LoggingLevel.EVENT, f"Received event: {cleaned_event}.")
+                    logging.log(LoggingLevel.EVENT, f"Received log entry: {cleaned_event}.")
                 # ACK the message
                 rabbitmq_server_connection.channel.basic_ack(delivery_tag=method.delivery_tag)
         # Stop getting events to the RabbitMQ server
