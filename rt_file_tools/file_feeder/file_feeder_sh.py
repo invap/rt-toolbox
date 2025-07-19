@@ -19,7 +19,8 @@ from rt_file_tools.logging_configuration import (
     configure_logging_level
 )
 from rt_file_tools.rabbitmq_utility import (
-    rabbitmq_connect_to_server, RabbitMQError
+    rabbitmq_connect_to_server,
+    RabbitMQError
 )
 from rt_file_tools.utility import (
     is_valid_file_with_extension_nex,
@@ -50,7 +51,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog = "The File Feeder for The Runtime Monitor",
         description = "Reports events from an event report file in cvs format by publishing the to a RabbitMQ server.",
-        epilog = "Example: python -m rt_file_tools.file_feeder.file_feeder_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output_log.txt --log_level=event --timeout=120"
+        epilog = "Example: python -m rt_file_tools.file_feeder.file_feeder_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
     )
     parser.add_argument("src_file", type=str, help="Path to the file containing the events in cvs format.")
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ server host.')
@@ -151,7 +152,7 @@ def main():
                 break
             # Publish event at RabbitMQ server
             channel.basic_publish(
-                exchange=rabbitmq_server_config.exchange,
+                exchange=rabbitmq_server_connection.exchange,
                 routing_key='events',
                 body=line,
                 properties=pika.BasicProperties(
@@ -162,7 +163,7 @@ def main():
             logging.log(LoggingLevel.EVENT, f"Sent event: {cleaned_event}.")
         # Always attempt to send poison pill if the channel is available
         channel.basic_publish(
-            exchange=rabbitmq_server_config.exchange,
+            exchange=rabbitmq_server_connection.exchange,
             routing_key='events',
             body='',
             properties=pika.BasicProperties(

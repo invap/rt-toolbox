@@ -6,10 +6,11 @@ import logging
 import signal
 import time
 import argparse
+from datetime import datetime
 
-from rt_file_tools.file_dumper.config import config
-from rt_file_tools.file_dumper.rabbitmq_server_configs import rabbitmq_server_config
-from rt_file_tools.file_dumper.rabbitmq_server_connections import rabbitmq_server_connection
+from rt_file_tools.logger.config import config
+from rt_file_tools.logger.rabbitmq_server_configs import rabbitmq_server_config
+from rt_file_tools.logger.rabbitmq_server_connections import rabbitmq_server_connection
 from rt_file_tools.logging_configuration import (
     LoggingLevel,
     LoggingDestination,
@@ -46,19 +47,19 @@ def main():
 
     # Argument processing
     parser = argparse.ArgumentParser(
-        prog = "The File Dumper for The Runtime Reporter.",
-        description="Writes an event report file in cvs format with events got from a RabbitMQ server.",
-        epilog = "Example: python -m rt_file_tools.file_dumper.file_dumper_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
+        prog = "The Logger for The Runtime Monitor.",
+        description="Writes a log file with with the messages got from a RabbitMQ server.",
+        epilog = "Example: python -m rt_file_tools.logger.logger_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
     )
     parser.add_argument('dest_file', help='Event report file name.')
-    parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ server host.')
-    parser.add_argument('--port', type=int, default=5672, help='RabbitMQ server port.')
-    parser.add_argument('--user', default='guest', help='RabbitMQ server user.')
-    parser.add_argument('--password', default='guest', help='RabbitMQ server password.')
-    parser.add_argument('--exchange', type=str, default='my_event_exchange', help='Name of the exchange at the RabbitMQ server.')
+    parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ logging server host.')
+    parser.add_argument('--port', type=int, default=5672, help='RabbitMQ logging server port.')
+    parser.add_argument('--user', default='guest', help='RabbitMQ logging server user.')
+    parser.add_argument('--password', default='guest', help='RabbitMQ logging server password.')
+    parser.add_argument('--exchange', type=str, default='my_log_exchange', help='Name of the exchange at the RabbitMQ logging server.')
     parser.add_argument("--log_level", type=str, choices=["debug", "event", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file.')
-    parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds to wait for events after last received, from the RabbitMQ event server (0 = no timeout).")
+    parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds to wait for messages after last received message (0 = no timeout).")
     # Parse arguments
     args = parser.parse_args()
     # Set up the logging infrastructure
@@ -100,14 +101,14 @@ def main():
             logging.info(f"Log destination: FILE ({args.log_file}).")
     # Validate and normalize the event report path
     if args.dest_file is not None:
-        valid = is_valid_file_with_extension_nex(args.dest_file, "csv")
+        valid = is_valid_file_with_extension_nex(args.dest_file, "log")
         if not valid:
             logging.error(f"Output file error.")
             exit(-1)
         dest_file = args.dest_file
     else:
         dest_file = "./event_report.csv"
-    logging.info(f"Output event report file: {dest_file}")
+    logging.info(f"Output log file: {dest_file}")
     # Determine timeout
     timeout = args.timeout if args.timeout >= 0 else 0
     logging.info(f"Timeout for event reception from RabbitMQ server: {timeout} seconds.")
@@ -126,7 +127,7 @@ def main():
         poison_received = False
         # Setup RabbitMQ server
         try:
-            connection, channel, queue_name = setup_rabbitmq(rabbitmq_server_config, 'events')
+            connection, channel, queue_name = setup_rabbitmq(rabbitmq_server_config, 'log_entries')
         except RabbitMQError:
             logging.critical(f"Error setting up connection to RabbitMQ server.")
             exit(-2)
@@ -136,7 +137,7 @@ def main():
             rabbitmq_server_connection.exchange = rabbitmq_server_config.exchange
             rabbitmq_server_connection.queue_name = queue_name
         # Start getting events to the RabbitMQ server
-        logging.info(f"Start getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        logging.info(f"Start getting log entries  from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         while not poison_received and not signal_flags['stop']:
             # Handle SIGINT
             if signal_flags['stop']:
@@ -170,14 +171,15 @@ def main():
                     last_message_time = time.time()
                     # Event received
                     event = body.decode()
-                    output_file.write(event)
+                    timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                    output_file.write(f"{timestamp} : {event}\n")
                     output_file.flush()
                     cleaned_event = event.rstrip('\n\r')
                     logging.log(LoggingLevel.EVENT, f"Received event: {cleaned_event}.")
                 # ACK the message
                 rabbitmq_server_connection.channel.basic_ack(delivery_tag=method.delivery_tag)
         # Stop getting events to the RabbitMQ server
-        logging.info(f"Stop getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        logging.info(f"Stop getting log entries from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:
