@@ -1,9 +1,15 @@
+# Copyright (c) 2025 Carlos Gustavo Lopez Pombo, clpombo@gmail.com
+# Copyright (c) 2025 INVAP, open@invap.com.ar
+# SPDX-License-Identifier: AGPL-3.0-or-later OR Lopez-Pombo-Commercial
+
 import logging
 import signal
 import time
 import argparse
 
-from rt_file_tools.config import config
+from rt_file_tools.file_dumper.config import config
+from rt_file_tools.file_dumper.rabbitmq_server_configs import rabbitmq_server_config
+from rt_file_tools.file_dumper.rabbitmq_server_connections import rabbitmq_server_connection
 from rt_file_tools.logging_configuration import (
     LoggingLevel,
     LoggingDestination,
@@ -11,12 +17,12 @@ from rt_file_tools.logging_configuration import (
     configure_logging_destination,
     configure_logging_level
 )
-from rt_file_tools.rabbitmq_server_config import rabbitmq_server_config
 from rt_file_tools.rabbitmq_utility import (
-    setup_rabbitmq, RabbitMQError)
+    setup_rabbitmq,
+    RabbitMQError
+)
 from rt_file_tools.utility import (
-    is_valid_file_with_extension_nex,
-
+    is_valid_file_with_extension_nex
 )
 
 # Errors:
@@ -49,7 +55,7 @@ def main():
     parser.add_argument('--port', type=int, default=5672, help='RabbitMQ server port.')
     parser.add_argument('--user', default='guest', help='RabbitMQ server user.')
     parser.add_argument('--password', default='guest', help='RabbitMQ server password.')
-    parser.add_argument('--exchange', type=str, default='my_exchange', help='Name of the exchange at the RabbitMQ server.')
+    parser.add_argument('--exchange', type=str, default='my_event_exchange', help='Name of the exchange at the RabbitMQ server.')
     parser.add_argument("--log_level", type=str, choices=["debug", "event", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file (optional argument).')
     parser.add_argument("--timeout", type=int, default=60, help="Timeout in seconds to wait for messages after last received message (0 = no timeout) (default = 60 seconds).")
@@ -120,10 +126,15 @@ def main():
         poison_received = False
         # Setup RabbitMQ server
         try:
-            connection, channel, queue_name = setup_rabbitmq()
+            connection, channel, queue_name = setup_rabbitmq(rabbitmq_server_config, 'events')
         except RabbitMQError:
             logging.critical(f"Error setting up connection to RabbitMQ server.")
             exit(-2)
+        else:
+            rabbitmq_server_connection.connection = connection
+            rabbitmq_server_connection.channel = channel
+            rabbitmq_server_connection.exchange = rabbitmq_server_config.exchange
+            rabbitmq_server_connection.queue_name = queue_name
         # Start getting events to the RabbitMQ server
         logging.info(f"Start getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         while not poison_received and not signal_flags['stop']:
@@ -145,7 +156,10 @@ def main():
                 logging.info(f"No event received for {config.timeout} seconds. Timeout reached.")
                 poison_received = True
             # Get event from RabbitMQ
-            method, properties, body = channel.basic_get(queue=queue_name, auto_ack=False)
+            method, properties, body = rabbitmq_server_connection.channel.basic_get(
+                queue=rabbitmq_server_connection.queue_name,
+                auto_ack=False
+            )
             if method:  # Message exists
                 # Process message
                 if properties.headers and properties.headers.get('termination'):
@@ -161,7 +175,7 @@ def main():
                     logging.log(LoggingLevel.EVENT, f"Received event: {cleaned_event}.")
                     output_file.flush()
                 # ACK the message
-                channel.basic_ack(delivery_tag=method.delivery_tag)
+                rabbitmq_server_connection.channel.basic_ack(delivery_tag=method.delivery_tag)
         # Stop getting events to the RabbitMQ server
         logging.info(f"Stop getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Close connection if it exists

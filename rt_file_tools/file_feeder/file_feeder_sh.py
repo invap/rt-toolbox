@@ -1,10 +1,16 @@
+# Copyright (c) 2025 Carlos Gustavo Lopez Pombo, clpombo@gmail.com
+# Copyright (c) 2025 INVAP, open@invap.com.ar
+# SPDX-License-Identifier: AGPL-3.0-or-later OR Fundacion-Sadosky-Commercial
+
 import argparse
 import logging
 import time
 import pika
 import signal
 
-from rt_file_tools.config import config
+from rt_file_tools.file_feeder.config import config
+from rt_file_tools.file_feeder.rabbitmq_server_configs import rabbitmq_server_config
+from rt_file_tools.file_feeder.rabbitmq_server_connections import rabbitmq_server_connection
 from rt_file_tools.logging_configuration import (
     LoggingLevel,
     LoggingDestination,
@@ -12,11 +18,13 @@ from rt_file_tools.logging_configuration import (
     configure_logging_destination,
     configure_logging_level
 )
-from rt_file_tools.rabbitmq_server_config import rabbitmq_server_config
 from rt_file_tools.rabbitmq_utility import (
     rabbitmq_connect_to_server, RabbitMQError
 )
-from rt_file_tools.utility import is_valid_file_with_extension_nex, is_valid_file_with_extension
+from rt_file_tools.utility import (
+    is_valid_file_with_extension_nex,
+    is_valid_file_with_extension
+)
 
 
 # Errors:
@@ -49,7 +57,7 @@ def main():
     parser.add_argument('--port', type=int, default=5672, help='RabbitMQ server port.')
     parser.add_argument('--user', default='guest', help='RabbitMQ server user.')
     parser.add_argument('--password', default='guest', help='RabbitMQ server password.')
-    parser.add_argument('--exchange', type=str, default='my_exchange', help='Name of the exchange at the RabbitMQ server.')
+    parser.add_argument('--exchange', type=str, default='my_event_exchange', help='Name of the exchange at the RabbitMQ server.')
     parser.add_argument("--log_level", type=str, choices=["debug", "event", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file.')
     parser.add_argument("--timeout", type=int, default=0, help="Timeout for the event acquisition process in seconds (0 = no timeout).")
@@ -113,10 +121,14 @@ def main():
     start_time_epoch = time.time()
     with (open(args.src_file, "r") as input_file):
         try:
-            connection, channel = rabbitmq_connect_to_server()
+            connection, channel = rabbitmq_connect_to_server(rabbitmq_server_config)
         except RabbitMQError:
             logging.critical(f"Error setting up connection to RabbitMQ server.")
             exit(-2)
+        else:
+            rabbitmq_server_connection.connection = connection
+            rabbitmq_server_connection.channel = channel
+            rabbitmq_server_connection.exchange = rabbitmq_server_config.exchange
         # Start publishing events to the RabbitMQ server
         logging.info(f"Start publishing events to RabbitMQ server at {args.host}:{args.port}.")
         for line in input_file:
