@@ -20,7 +20,8 @@ from rt_file_tools.logging_configuration import (
 )
 from rt_file_tools.rabbitmq_utility import (
     rabbitmq_connect_to_server,
-    RabbitMQError
+    RabbitMQError,
+    publish_message
 )
 from rt_file_tools.utility import (
     is_valid_file_with_extension_nex,
@@ -151,27 +152,29 @@ def main():
                 logging.info(f"Acquired events for {config.timeout} seconds. Timeout reached.")
                 break
             # Publish event at RabbitMQ server
-            channel.basic_publish(
-                exchange=rabbitmq_server_connection.exchange,
-                routing_key='events',
-                body=line,
-                properties=pika.BasicProperties(
-                    delivery_mode=2  # Persistent message
+            try:
+                properties = pika.BasicProperties(
+                    delivery_mode=2,  # Persistent message
                 )
-            )
-            cleaned_event = line.rstrip('\n\r')
-            logging.log(LoggingLevel.EVENT, f"Sent event: {cleaned_event}.")
-        # Always attempt to send poison pill if the channel is available
-        channel.basic_publish(
-            exchange=rabbitmq_server_connection.exchange,
-            routing_key='events',
-            body='',
-            properties=pika.BasicProperties(
-                delivery_mode=2,  # Persistent message
+                publish_message(rabbitmq_server_connection, 'events', line, properties)
+            except RabbitMQError:
+                logging.info("Error sending event to the RabbitMQ event server.")
+                exit(-2)
+            else:
+                cleaned_event = line.rstrip('\n\r')
+                logging.log(LoggingLevel.EVENT, f"Sent event: {cleaned_event}.")
+        # Send poison pill to the RabbitMQ logging server
+        try:
+            properties = pika.BasicProperties(
+                delivery_mode=2,
                 headers={'termination': True}
             )
-        )
-        logging.info("Poison pill sent.")
+            publish_message(rabbitmq_server_connection, 'events', '', properties)
+        except RabbitMQError:
+            logging.info("Error sending poison pill to the RabbitMQ logging server.")
+            exit(-2)
+        else:
+            logging.info("Poison pill sent.")
         # Stop publishing events to the RabbitMQ server
         logging.info(f"Stop publishing events to RabbitMQ server at {args.host}:{args.port}.")
         # Close connection if it exists

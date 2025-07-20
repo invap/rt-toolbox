@@ -19,11 +19,14 @@ from rt_file_tools.logging_configuration import (
 )
 from rt_file_tools.rabbitmq_utility import (
     setup_rabbitmq,
-    RabbitMQError
+    RabbitMQError,
+    get_message,
+    ack_message
 )
 from rt_file_tools.utility import (
     is_valid_file_with_extension_nex
 )
+
 
 # Errors:
 # -1: Output file error
@@ -156,10 +159,11 @@ def main():
                 logging.info(f"No event received for {config.timeout} seconds. Timeout reached.")
                 poison_received = True
             # Get event from RabbitMQ
-            method, properties, body = rabbitmq_server_connection.channel.basic_get(
-                queue=rabbitmq_server_connection.queue_name,
-                auto_ack=False
-            )
+            try:
+                method, properties, body = get_message(rabbitmq_server_connection)
+            except RabbitMQError:
+                logging.critical(f"Error getting message from RabbitMQ server.")
+                exit(-2)
             if method:  # Message exists
                 # Process message
                 if properties.headers and properties.headers.get('termination'):
@@ -175,7 +179,11 @@ def main():
                     cleaned_event = event.rstrip('\n\r')
                     logging.log(LoggingLevel.EVENT, f"Received event: {cleaned_event}.")
                 # ACK the message
-                rabbitmq_server_connection.channel.basic_ack(delivery_tag=method.delivery_tag)
+                try:
+                    ack_message(rabbitmq_server_connection, method.delivery_tag)
+                except RabbitMQError:
+                    logging.critical(f"Error acknowledging a message to the RabbitMQ event server.")
+                    exit(-2)
         # Stop getting events to the RabbitMQ server
         logging.info(f"Stop getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Close connection if it exists
