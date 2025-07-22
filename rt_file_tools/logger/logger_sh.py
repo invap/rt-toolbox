@@ -9,7 +9,7 @@ import argparse
 from datetime import datetime
 
 from rt_file_tools.logger.config import config
-from rt_file_tools.logger.rabbitmq_server_configs import rabbitmq_server_config
+from rt_file_tools.logger.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
 from rt_file_tools.logger.rabbitmq_server_connections import rabbitmq_server_connection
 from rt_file_tools.logging_configuration import (
     LoggingLevel,
@@ -19,10 +19,12 @@ from rt_file_tools.logging_configuration import (
     configure_logging_level
 )
 from rt_file_tools.rabbitmq_utility import (
-    setup_rabbitmq,
     RabbitMQError,
     get_message,
-    ack_message
+    ack_message,
+    connect_to_server,
+    connect_to_channel_exchange,
+    declare_queue
 )
 from rt_file_tools.utility import (
     is_valid_file_with_extension_nex
@@ -60,7 +62,7 @@ def main():
     parser.add_argument('--user', default='guest', help='RabbitMQ logging server user.')
     parser.add_argument('--password', default='guest', help='RabbitMQ logging server password.')
     parser.add_argument('--exchange', type=str, default='my_log_exchange', help='Name of the exchange at the RabbitMQ logging server.')
-    parser.add_argument("--log_level", type=str, choices=["debug", "event", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
+    parser.add_argument("--log_level", type=str, choices=["debug", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file.')
     parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds to wait for messages after last received message (0 = no timeout).")
     # Parse arguments
@@ -70,8 +72,6 @@ def main():
     match args.log_level:
         case "debug":
             logging_level = LoggingLevel.DEBUG
-        case "event":
-            logging_level = LoggingLevel.EVENT
         case "info":
             logging_level = LoggingLevel.INFO
         case "warnings":
@@ -102,25 +102,26 @@ def main():
             logging.info("Log file error. Log destination: CONSOLE.")
         else:
             logging.info(f"Log destination: FILE ({args.log_file}).")
-    # Validate and normalize the event report path
+    # Validate and normalize the log file path
     if args.dest_file is not None:
         valid = is_valid_file_with_extension_nex(args.dest_file, "log")
         if not valid:
-            logging.error(f"Output file error.")
+            logging.error(f"Output log file error.")
             exit(-1)
         dest_file = args.dest_file
     else:
-        dest_file = "./event_report.csv"
+        dest_file = "./analysis.log"
     logging.info(f"Output log file: {dest_file}")
     # Determine timeout
     timeout = args.timeout if args.timeout >= 0 else 0
-    logging.info(f"Timeout for event reception from RabbitMQ server: {timeout} seconds.")
+    logging.info(f"Timeout for log entry reception from RabbitMQ logging server: {timeout} seconds.")
     # RabbitMQ server configuration
     rabbitmq_server_config.host = args.host
     rabbitmq_server_config.port = args.port
     rabbitmq_server_config.user = args.user
     rabbitmq_server_config.password = args.password
-    rabbitmq_server_config.exchange = args.exchange
+    # RabbitMQ exchange configuration
+    rabbitmq_exchange_config.exchange = args.exchange
     # Other configuration
     config.timeout = timeout
     # Open the output file and the AMQP connection
@@ -128,38 +129,52 @@ def main():
         last_message_time = time.time()
         # Control variables
         poison_received = False
-        # Setup RabbitMQ server
+        # Set up the connection to the RabbitMQ connection to server
         try:
-            connection, channel, queue_name = setup_rabbitmq(rabbitmq_server_config, 'log_entries')
+            connection = connect_to_server(rabbitmq_server_config)
         except RabbitMQError:
-            logging.critical(f"Error setting up connection to RabbitMQ server.")
+            logging.critical(f"Error setting up the connection to the RabbitMQ server.")
             exit(-2)
-        else:
-            rabbitmq_server_connection.connection = connection
-            rabbitmq_server_connection.channel = channel
-            rabbitmq_server_connection.exchange = rabbitmq_server_config.exchange
-            rabbitmq_server_connection.queue_name = queue_name
-        # Start getting events to the RabbitMQ server
+        # Set up the RabbitMQ channel and exchange for log entries with the RabbitMQ server
+        try:
+            channel = connect_to_channel_exchange(rabbitmq_server_config, rabbitmq_exchange_config, connection)
+        except RabbitMQError:
+            logging.critical(f"Error setting up the channel and exchange at the RabbitMQ server.")
+            exit(-2)
+        # Set up the RabbitMQ queue and routing key for log entries with the RabbitMQ server
+        try:
+            queue_name = declare_queue(rabbitmq_server_config, rabbitmq_exchange_config, channel, 'log_entries')
+        except RabbitMQError:
+            logging.critical(f"Error setting up the channel and exchange at the RabbitMQ server.")
+            exit(-2)
+        # Start getting log entries from the RabbitMQ server
+        logging.info(f"Start getting log entries from queue {queue_name} - exchange {rabbitmq_exchange_config.exchange} at RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        # Set up connection for log entries with the RabbitMQ server
+        rabbitmq_server_connection.connection = connection
+        rabbitmq_server_connection.channel = channel
+        rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
+        rabbitmq_server_connection.queue_name = queue_name
+        # Start getting log entries to the RabbitMQ server
         logging.info(f"Start getting log entries  from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         while not poison_received and not signal_flags['stop']:
             # Handle SIGINT
             if signal_flags['stop']:
-                logging.info("SIGINT received. Stopping the event acquisition process.")
+                logging.info("SIGINT received. Stopping the log entry acquisition process.")
                 poison_received = True
             # Handle SIGTSTP
             if signal_flags['pause']:
-                logging.info("SIGTSTP received. Pausing the event acquisition process.")
+                logging.info("SIGTSTP received. Pausing the log entry acquisition process.")
                 while signal_flags['pause'] and not signal_flags['stop']:
                     time.sleep(1)  # Efficiently wait for signals
                 if signal_flags['stop']:
-                    logging.info("SIGINT received. Stopping the event acquisition process.")
+                    logging.info("SIGINT received. Stopping the log entry acquisition process.")
                     poison_received = True
-                logging.info("SIGTSTP received. Resuming the event acquisition process.")
+                logging.info("SIGTSTP received. Resuming the log entry acquisition process.")
             # Timeout handling for message reception
             if 0 < config.timeout < (time.time() - last_message_time):
-                logging.info(f"No event received for {config.timeout} seconds. Timeout reached.")
+                logging.info(f"No log entry received for {config.timeout} seconds. Timeout reached.")
                 poison_received = True
-            # Get event from RabbitMQ
+            # Get log entry from RabbitMQ
             try:
                 method, properties, body = get_message(rabbitmq_server_connection)
             except RabbitMQError:
@@ -174,19 +189,19 @@ def main():
                 else:
                     last_message_time = time.time()
                     # Event received
-                    event = body.decode()
+                    log_entry = body.decode()
                     timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                    output_file.write(f"{timestamp} : {event}\n")
+                    output_file.write(f"{timestamp} : {log_entry}\n")
                     output_file.flush()
-                    cleaned_event = event.rstrip('\n\r')
-                    logging.log(LoggingLevel.EVENT, f"Received log entry: {cleaned_event}.")
+                    cleaned_log_entry = log_entry.rstrip('\n\r')
+                    logging.log(LoggingLevel.DEBUG, f"Received log entry: {cleaned_log_entry}.")
                 # ACK the message
                 try:
                     ack_message(rabbitmq_server_connection, method.delivery_tag)
                 except RabbitMQError:
-                    logging.critical(f"Error acknowledging a message to the RabbitMQ event server.")
+                    logging.critical(f"Error acknowledging a message to the RabbitMQ log entry server.")
                     exit(-2)
-        # Stop getting events to the RabbitMQ server
+        # Stop getting log entries to the RabbitMQ server
         logging.info(f"Stop getting log entries from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Close connection if it exists
         if connection and connection.is_open:
