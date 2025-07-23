@@ -160,7 +160,7 @@ def main():
             # Handle SIGINT
             if signal_flags['stop']:
                 logging.info("SIGINT received. Stopping the event acquisition process.")
-                poison_received = True
+                break
             # Handle SIGTSTP
             if signal_flags['pause']:
                 logging.info("SIGTSTP received. Pausing the event acquisition process.")
@@ -168,12 +168,12 @@ def main():
                     time.sleep(1)  # Efficiently wait for signals
                 if signal_flags['stop']:
                     logging.info("SIGINT received. Stopping the event acquisition process.")
-                    poison_received = True
+                    break
                 logging.info("SIGTSTP received. Resuming the event acquisition process.")
             # Timeout handling for message reception
             if 0 < config.timeout < (time.time() - last_message_time):
                 logging.info(f"No event received for {config.timeout} seconds. Timeout reached.")
-                poison_received = True
+                break
             # Get event from RabbitMQ
             try:
                 method, properties, body = get_message(rabbitmq_server_connection)
@@ -184,7 +184,9 @@ def main():
                 # Process message
                 if properties.headers and properties.headers.get('termination'):
                     # Poison pill received
-                    logging.info(f"Poison pill received.")
+                    logging.info(f"Poison pill received with the events routing_key from the RabbitMQ server.")
+                    # Stop getting events from the RabbitMQ server
+                    logging.info(f"Stop getting events from the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                     poison_received = True
                 else:
                     last_message_time = time.time()
@@ -200,8 +202,6 @@ def main():
                 except RabbitMQError:
                     logging.critical(f"Error acknowledging a message to the RabbitMQ event server.")
                     exit(-2)
-        # Stop getting events to the RabbitMQ server
-        logging.info(f"Stop getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:

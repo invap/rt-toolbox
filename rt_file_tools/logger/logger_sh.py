@@ -184,8 +184,9 @@ def main():
                 # Process message
                 if properties.headers and properties.headers.get('termination'):
                     # Poison pill received
-                    logging.info(f"Poison pill received.")
-                    poison_received = True
+                    logging.info(f"Poison pill received with the log_entries routing_key from the RabbitMQ server.")
+                    # Stop getting events from the RabbitMQ server
+                    logging.info(f"Stop getting log entries from the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                 else:
                     last_message_time = time.time()
                     # Event received
@@ -201,8 +202,6 @@ def main():
                 except RabbitMQError:
                     logging.critical(f"Error acknowledging a message to the RabbitMQ log entry server.")
                     exit(-2)
-        # Stop getting log entries to the RabbitMQ server
-        logging.info(f"Stop getting log entries from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:
