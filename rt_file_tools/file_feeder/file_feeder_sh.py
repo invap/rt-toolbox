@@ -139,6 +139,8 @@ def main():
         rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
         # Start publishing events to the RabbitMQ server
         logging.info(f"Start publishing events to RabbitMQ server at {args.host}:{args.port}.")
+        # Start event acquisition from the file
+        start_time_epoch = time.time()
         for line in input_file:
             # Handle SIGINT
             if signal_flags['stop']:

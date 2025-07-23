@@ -126,9 +126,6 @@ def main():
     config.timeout = timeout
     # Open the output file and the AMQP connection
     with open(dest_file, "w") as output_file:
-        last_message_time = time.time()
-        # Control variables
-        poison_received = False
         # Set up the connection to the RabbitMQ connection to server
         try:
             connection = connect_to_server(rabbitmq_server_config)
@@ -141,26 +138,30 @@ def main():
         except RabbitMQError:
             logging.critical(f"Error setting up the channel and exchange at the RabbitMQ server.")
             exit(-2)
-        # Set up the RabbitMQ queue and routing key for log entries with the RabbitMQ server
+        # Set up the RabbitMQ queue and routing key for events with the RabbitMQ server
         try:
             queue_name = declare_queue(rabbitmq_server_config, rabbitmq_exchange_config, channel, 'events')
         except RabbitMQError:
             logging.critical(f"Error setting up the channel and exchange at the RabbitMQ server.")
             exit(-2)
-        # Start getting log entries from the RabbitMQ server
-        logging.info(f"Start getting log entries from queue {queue_name} - exchange {rabbitmq_exchange_config.exchange} at RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
-        # Set up connection for log entries with the RabbitMQ server
+        # Set up connection for evens with the RabbitMQ server
         rabbitmq_server_connection.connection = connection
         rabbitmq_server_connection.channel = channel
         rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
         rabbitmq_server_connection.queue_name = queue_name
-        # Start getting events to the RabbitMQ server
-        logging.info(f"Start getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
-        while not poison_received and not signal_flags['stop']:
+        # Start getting events from the RabbitMQ server
+        logging.info(f"Start getting events from queue {queue_name} - exchange {rabbitmq_exchange_config.exchange} at RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        # initialize last_message_time for testing timeout
+        last_message_time = time.time()
+        # Control variables
+        poison_received = False
+        stop = False
+        abort = False
+        while not poison_received and not stop and not abort:
             # Handle SIGINT
             if signal_flags['stop']:
                 logging.info("SIGINT received. Stopping the event acquisition process.")
-                break
+                stop = True
             # Handle SIGTSTP
             if signal_flags['pause']:
                 logging.info("SIGTSTP received. Pausing the event acquisition process.")
@@ -168,40 +169,53 @@ def main():
                     time.sleep(1)  # Efficiently wait for signals
                 if signal_flags['stop']:
                     logging.info("SIGINT received. Stopping the event acquisition process.")
-                    break
-                logging.info("SIGTSTP received. Resuming the event acquisition process.")
+                    stop = True
+                if not signal_flags['pause']:
+                    logging.info("SIGTSTP received. Resuming the event acquisition process.")
             # Timeout handling for message reception
             if 0 < config.timeout < (time.time() - last_message_time):
                 logging.info(f"No event received for {config.timeout} seconds. Timeout reached.")
-                break
-            # Get event from RabbitMQ
-            try:
-                method, properties, body = get_message(rabbitmq_server_connection)
-            except RabbitMQError:
-                logging.critical(f"Error getting message from RabbitMQ server.")
-                exit(-2)
-            if method:  # Message exists
-                # Process message
-                if properties.headers and properties.headers.get('termination'):
-                    # Poison pill received
-                    logging.info(f"Poison pill received with the events routing_key from the RabbitMQ server.")
-                    # Stop getting events from the RabbitMQ server
-                    logging.info(f"Stop getting events from the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
-                    poison_received = True
-                else:
-                    last_message_time = time.time()
-                    # Event received
-                    event = body.decode()
-                    output_file.write(event)
-                    output_file.flush()
-                    cleaned_event = event.rstrip('\n\r')
-                    logging.debug(f"Received event: {cleaned_event}.")
-                # ACK the message
+                abort = True
+            # Process event only if temination has not been decided
+            if not stop and not abort:
+                # Get event from RabbitMQ
                 try:
-                    ack_message(rabbitmq_server_connection, method.delivery_tag)
+                    method, properties, body = get_message(rabbitmq_server_connection)
                 except RabbitMQError:
-                    logging.critical(f"Error acknowledging a message to the RabbitMQ event server.")
+                    logging.critical(f"Error getting message from RabbitMQ server.")
                     exit(-2)
+                if method:  # Message exists
+                    # Process message
+                    if properties.headers and properties.headers.get('termination'):
+                        # Poison pill received
+                        logging.info(f"Poison pill received with the events routing_key from the RabbitMQ server.")
+                        # Stop getting events from the RabbitMQ server
+                        logging.info(f"Stop getting events from the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+                        poison_received = True
+                    else:
+                        last_message_time = time.time()
+                        # Event received
+                        event = body.decode()
+                        output_file.write(event)
+                        output_file.flush()
+                        cleaned_event = event.rstrip('\n\r')
+                        logging.debug(f"Received event: {cleaned_event}.")
+                    # ACK the message
+                    try:
+                        ack_message(rabbitmq_server_connection, method.delivery_tag)
+                    except RabbitMQError:
+                        logging.critical(f"Error acknowledging a message to the RabbitMQ event server.")
+                        exit(-2)
+        # Logging the reason for stoping the verification process to the RabbitMQ server
+        if poison_received:
+            reason = "COMPLETED"
+        elif stop:
+            reason = "STOPPED"
+        elif abort:
+            reason = "ABORTED"
+        else:
+            reason = "STOPPED by an unknown reason"
+        logging.info(f"The file dumpint process {reason}.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:
