@@ -4,9 +4,9 @@
 
 import argparse
 import logging
+import signal
 import time
 import pika
-import signal
 
 from rt_file_tools.file_feeder.config import config
 from rt_file_tools.file_feeder.rabbitmq_server_configs import rabbitmq_server_config
@@ -92,23 +92,25 @@ def main():
     set_up_logging()
     configure_logging_destination(logging_destination, args.log_file)
     configure_logging_level(logging_level)
-    logging.info(f"Log verbosity level: {logging_level}.")
+    # Create a logger for the RabbitMQ utility component
+    logger = logging.getLogger("rt_file_tools.file_feeder_sh")
+    logger.info(f"Log verbosity level: {logging_level}.")
     if args.log_file is None:
-        logging.info("Log destination: CONSOLE.")
+        logger.info("Log destination: CONSOLE.")
     else:
         if not valid_log_file:
-            logging.info("Log file error. Log destination: CONSOLE.")
+            logger.info("Log file error. Log destination: CONSOLE.")
         else:
-            logging.info(f"Log destination: FILE ({args.log_file}).")
+            logger.info(f"Log destination: FILE ({args.log_file}).")
     # Validate and normalize the input file path
     valid = is_valid_file_with_extension(args.src_file, "csv")
     if not valid:
-        logging.error(f"Input file error.")
+        logger.error(f"Input file error.")
         exit(-1)
-    logging.info(f"Event report file: {args.src_file}")
+    logger.info(f"Event report file: {args.src_file}")
     # Determine timeout
     timeout = args.timeout if args.timeout >= 0 else 0
-    logging.info(f"Timeout for event acquisition from the file: {timeout} seconds.")
+    logger.info(f"Timeout for event acquisition from the file: {timeout} seconds.")
     # RabbitMQ server configuration
     rabbitmq_server_config.host = args.host
     rabbitmq_server_config.port = args.port
@@ -125,39 +127,39 @@ def main():
         try:
             connection = connect_to_server(rabbitmq_server_config)
         except RabbitMQError:
-            logging.critical(f"Error setting up the connection to the RabbitMQ server.")
+            logger.critical(f"Error setting up the connection to the RabbitMQ server.")
             exit(-2)
         # Set up the RabbitMQ channel and exchange for events with the RabbitMQ server
         try:
             channel = connect_to_channel_exchange(rabbitmq_server_config, rabbitmq_exchange_config, connection)
         except RabbitMQError:
-            logging.critical(f"Error setting up the channel and exchange at the RabbitMQ server.")
+            logger.critical(f"Error setting up the channel and exchange at the RabbitMQ server.")
             exit(-2)
         # Set up connection for events with the RabbitMQ server
         rabbitmq_server_connection.connection = connection
         rabbitmq_server_connection.channel = channel
         rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
         # Start publishing events to the RabbitMQ server
-        logging.info(f"Start publishing events to RabbitMQ server at {args.host}:{args.port}.")
+        logger.info(f"Start publishing events to RabbitMQ server at {args.host}:{args.port}.")
         # Start event acquisition from the file
         start_time_epoch = time.time()
         for line in input_file:
             # Handle SIGINT
             if signal_flags['stop']:
-                logging.info("SIGINT received. Stopping the event acquisition process.")
+                logger.info("SIGINT received. Stopping the event acquisition process.")
                 break
             # Handle SIGTSTP
             if signal_flags['pause']:
-                logging.info("SIGTSTP received. Pausing the event acquisition process.")
+                logger.info("SIGTSTP received. Pausing the event acquisition process.")
                 while signal_flags['pause'] and not signal_flags['stop']:
                     time.sleep(1)  # Efficiently wait for signals
                 if signal_flags['stop']:
-                    logging.info("SIGINT received. Stopping the event acquisition process.")
+                    logger.info("SIGINT received. Stopping the event acquisition process.")
                     break
-                logging.info("SIGTSTP received. Resuming the event acquisition process.")
+                logger.info("SIGTSTP received. Resuming the event acquisition process.")
             # Timeout handling for event acquisition.
             if config.timeout != 0 and time.time() - start_time_epoch >= config.timeout:
-                logging.info(f"Acquired events for {config.timeout} seconds. Timeout reached.")
+                logger.info(f"Acquired events for {config.timeout} seconds. Timeout reached.")
                 break
             # Publish event at RabbitMQ server
             try:
@@ -170,11 +172,11 @@ def main():
                     )
                 )
             except RabbitMQError:
-                logging.info("Error sending event to the RabbitMQ event server.")
+                logger.info("Error sending event to the RabbitMQ event server.")
                 exit(-2)
-            else:
-                cleaned_event = line.rstrip('\n\r')
-                logging.debug(f"Sent event: {cleaned_event}.")
+            # Log event send
+            cleaned_event = line.rstrip('\n\r')
+            logger.debug(f"Sent event: {cleaned_event}.")
         # Send poison pill with the events routing_key to the RabbitMQ server
         try:
             publish_message(
@@ -187,19 +189,19 @@ def main():
                 )
             )
         except RabbitMQError:
-            logging.info("Error sending with the events routing_key to the RabbitMQ server.")
+            logger.info("Error sending with the events routing_key to the RabbitMQ server.")
             exit(-2)
         else:
-            logging.info("Poison pill sent with the events routing_key to the RabbitMQ server.")
+            logger.info("Poison pill sent with the events routing_key to the RabbitMQ server.")
         # Stop publishing events to the RabbitMQ server
-        logging.info(f"Stop publishing events to RabbitMQ server at {args.host}:{args.port}.")
+        logger.info(f"Stop publishing events to RabbitMQ server at {args.host}:{args.port}.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:
                 connection.close()
-                logging.info(f"Connection to RabbitMQ server at {args.host}:{args.port} closed.")
+                logger.info(f"Connection to RabbitMQ server at {args.host}:{args.port} closed.")
             except Exception as e:
-                logging.error(f"Error closing connection to RabbitMQ server at {args.host}:{args.port}: {e}.")
+                logger.error(f"Error closing connection to RabbitMQ server at {args.host}:{args.port}: {e}.")
     exit(0)
 
 
