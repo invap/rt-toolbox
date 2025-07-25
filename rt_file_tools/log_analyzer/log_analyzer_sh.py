@@ -6,11 +6,10 @@ import logging
 import signal
 import time
 import argparse
-from datetime import datetime
 
-from rt_file_tools.logger.config import config
-from rt_file_tools.logger.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
-from rt_file_tools.logger.rabbitmq_server_connections import rabbitmq_server_connection
+from rt_file_tools.log_analyzer.config import config
+from rt_file_tools.log_analyzer.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
+from rt_file_tools.log_analyzer.rabbitmq_server_connections import rabbitmq_server_connection
 from rt_file_tools.logging_configuration import (
     LoggingLevel,
     LoggingDestination,
@@ -54,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog = "The Log ger for The Runtime Monitor.",
         description="Writes a log file with with the messages got from a RabbitMQ server.",
-        epilog = "Example: python -m rt_file_tools.logger.logger_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
+        epilog = "Example: python -m rt_file_tools.log_analyzer.log_analyzer_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
     )
     parser.add_argument('dest_file', help='Log analysis file name.')
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ logging server host.')
@@ -153,13 +152,24 @@ def main():
         rabbitmq_server_connection.queue_name = queue_name
         # Start getting log entries from the RabbitMQ server
         logger.info(f"Start getting log entries from queue {queue_name} - exchange {rabbitmq_exchange_config.exchange} at RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        # Variables in the log analysis
+        trace = []
+        task_started = 0
+        task_finished = 0
+        checkpoints_reached = 0
+        analyzed_props = 0
+        passed_props = 0
+        might_fail_props = 0
+        failed_props = 0
         # initialize last_message_time for testing timeout
         last_message_time = time.time()
+        start_time_epoch = time.time()
+        number_of_log_entries = 0
         # Control variables
         poison_received = False
         stop = False
-        abort = False
-        while not poison_received and not stop and not abort:
+        timeout = False
+        while not poison_received and not stop and not timeout:
             # Handle SIGINT
             if signal_flags['stop']:
                 logger.info("SIGINT received. Stopping the log entry acquisition process.")
@@ -176,10 +186,9 @@ def main():
                     logger.info("SIGTSTP received. Resuming the log entry acquisition process.")
             # Timeout handling for message reception
             if 0 < config.timeout < (time.time() - last_message_time):
-                logger.info(f"No log entry received for {config.timeout} seconds. Timeout reached.")
-                abort = True
+                timeout = True
             # Process log entry only if temination has not been decided
-            if not stop and not abort:
+            if not stop and not timeout:
                 # Get log entry from RabbitMQ
                 try:
                     method, properties, body = get_message(rabbitmq_server_connection)
@@ -191,8 +200,6 @@ def main():
                     if properties.headers and properties.headers.get('termination'):
                         # Poison pill received
                         logger.info(f"Poison pill received with the log_entries routing_key from the RabbitMQ server.")
-                        # Stop getting events from the RabbitMQ server
-                        logger.info(f"Stop getting log entries from the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                         poison_received = True
                     else:
                         last_message_time = time.time()
@@ -204,25 +211,62 @@ def main():
                         # Process log entry
                         split_log_entry = cleaned_log_entry.split(' - ')
                         dict_log_entry = {key: value for string in split_log_entry for key, value in [string.split(': ')]}
-
-                        output_file.write(f"{dict_log_entry}\n")
-                        output_file.flush()
+                        if "Task started" in dict_log_entry:
+                            trace.append({'task': dict_log_entry['Task started'], 'event': 'finished', 'timestamp': dict_log_entry['Timestamp']})
+                            task_started += 1
+                        elif "Task finished" in dict_log_entry:
+                            trace.append({'task': dict_log_entry['Task finished'], 'event': 'finished', 'timestamp': dict_log_entry['Timestamp']})
+                            task_finished += 1
+                        elif "Checkpoint reached" in dict_log_entry:
+                            trace.append({'checkpoint': dict_log_entry['Checkpoint reached'], 'timestamp': dict_log_entry['Timestamp']})
+                            checkpoints_reached += 1
+                        else:  # Property in dict_log_entry
+                            analyzed_props += 1
+                            match dict_log_entry['Analysis']:
+                                case 'PASSED':
+                                    passed_props += 1
+                                case 'MIGHT FAIL':
+                                    might_fail_props += 1
+                                case 'FAILED':
+                                    failed_props += 1
+                                case _:
+                                    logger.error(f"Invalid analysis result: {dict_log_entry['Analysis']}.")
+                        # Only increment number_of_log_entries is it is a valid log entry (rules out poisson pill)
+                        number_of_log_entries += 1
                     # ACK the message
                     try:
                         ack_message(rabbitmq_server_connection, method.delivery_tag)
                     except RabbitMQError:
                         logger.critical(f"Error acknowledging a message to the RabbitMQ log entry server.")
                         exit(-2)
+        # Stop getting events from the RabbitMQ server
+        logger.info(f"Stop getting log entries from the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        # Write the analysis results
+        output_file.write("--------------- Analysis Statistics ---------------\n")
+        output_file.write(f"Processed log entries: {number_of_log_entries}.\n")
+        output_file.write("---------------------------------------------------\n")
+        output_file.write(f"Trace run: {trace}.\n")
+        output_file.write(f"Trace length (events): {len(trace)}.\n")
+        output_file.write(f"Tasks started: {task_started}.\n")
+        output_file.write(f"Tasks finished: {task_finished}.\n")
+        output_file.write(f"Checkpoints reached: {checkpoints_reached}.\n")
+        output_file.write("---------------------------------------------------\n")
+        output_file.write(f"Analyzed properties: {analyzed_props}.\n")
+        if analyzed_props > 0:
+            output_file.write(f"PASSED properties: {passed_props} ({passed_props * 100 / analyzed_props:.2f}%).\n")
+            output_file.write(f"MIGHT FAIL properties: {might_fail_props} ({might_fail_props * 100 / analyzed_props:.2f}%).\n")
+            output_file.write(f"FAILED properties: {failed_props} ({failed_props * 100 / analyzed_props:.2f}%).\n")
+        output_file.write("---------------------------------------------------")
+        output_file.flush()
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if poison_received:
-            reason = "COMPLETED"
+            logger.info(f"Processed log entries: {number_of_log_entries} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
         elif stop:
-            reason = "STOPPED"
-        elif abort:
-            reason = "ABORTED"
+            logger.info(f"Processed log entries: {number_of_log_entries} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
+        elif timeout:
+            logger.info(f"Processed log entries: {number_of_log_entries} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, message reception timeout reached ({time.time()-last_message_time} secs.).")
         else:
-            reason = "STOPPED by an unknown reason"
-        logger.info(f"Log analysis process {reason}.")
+            logger.info(f"Processed log entries: {number_of_log_entries} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:
