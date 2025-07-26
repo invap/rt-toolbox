@@ -30,6 +30,7 @@ class RabbitMQ_server_config:
 class RabbitMQ_exchange_config:
     def __init__(self):
         self.exchange = None
+        self.routing_key = None
 
 
 class RabbitMQ_server_connection:

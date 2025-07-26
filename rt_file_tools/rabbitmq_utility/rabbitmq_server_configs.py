@@ -2,7 +2,8 @@
 # Copyright (c) 2025 INVAP, open@invap.com.ar
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Lopez-Pombo-Commercial
 
-from rt_file_tools.rabbitmq_utility import RabbitMQ_server_connection
+from rt_file_tools.rabbitmq_utility.rabbitmq_utility import RabbitMQ_server_config, RabbitMQ_exchange_config
 
 # Singleton instance shared globally
-rabbitmq_server_connection = RabbitMQ_server_connection()
+rabbitmq_server_config = RabbitMQ_server_config()
+rabbitmq_exchange_config = RabbitMQ_exchange_config()
