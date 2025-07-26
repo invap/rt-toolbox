@@ -61,6 +61,7 @@ def main():
     parser.add_argument('--user', default='guest', help='RabbitMQ logging server user.')
     parser.add_argument('--password', default='guest', help='RabbitMQ logging server password.')
     parser.add_argument('--exchange', type=str, default='my_log_exchange', help='Name of the exchange at the RabbitMQ logging server.')
+    parser.add_argument('--routing_key', type=str, default='log_entries', help='Name of the routing key used at the RabbitMQ server.')
     parser.add_argument("--log_level", type=str, choices=["debug", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file.')
     parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds to wait for messages after last received message (0 = no timeout).")
@@ -105,13 +106,13 @@ def main():
             logger.info(f"Log destination: FILE ({args.log_file}).")
     # Validate and normalize the log file path
     if args.dest_file is not None:
-        valid = is_valid_file_with_extension_nex(args.dest_file, "log")
+        valid = is_valid_file_with_extension_nex(args.dest_file, 'any')
         if not valid:
             logger.error(f"Output log file error.")
             exit(-1)
         dest_file = args.dest_file
     else:
-        dest_file = "./log_analysis.log"
+        dest_file = "./log_analysis.txt"
     logger.info(f"Output log analysis file: {dest_file}")
     # Determine timeout
     timeout = args.timeout if args.timeout >= 0 else 0
@@ -123,6 +124,7 @@ def main():
     rabbitmq_server_config.password = args.password
     # RabbitMQ exchange configuration
     rabbitmq_exchange_config.exchange = args.exchange
+    rabbitmq_exchange_config.routing_key = args.routing_key
     # Other configuration
     config.timeout = timeout
     # Open the output file and the AMQP connection
@@ -135,13 +137,22 @@ def main():
             exit(-2)
         # Set up the RabbitMQ channel and exchange for log entries with the RabbitMQ server
         try:
-            channel = connect_to_channel_exchange(rabbitmq_server_config, rabbitmq_exchange_config, connection)
+            channel = connect_to_channel_exchange(
+                rabbitmq_server_config,
+                rabbitmq_exchange_config,
+                connection
+            )
         except RabbitMQError:
             logger.critical(f"Error setting up the channel and exchange at the RabbitMQ server.")
             exit(-2)
         # Set up the RabbitMQ queue and routing key for log entries with the RabbitMQ server
         try:
-            queue_name = declare_queue(rabbitmq_server_config, rabbitmq_exchange_config, channel, 'log_entries')
+            queue_name = declare_queue(
+                rabbitmq_server_config,
+                rabbitmq_exchange_config,
+                channel,
+                rabbitmq_exchange_config.routing_key
+            )
         except RabbitMQError:
             logger.critical(f"Error setting up the channel and exchange at the RabbitMQ server.")
             exit(-2)

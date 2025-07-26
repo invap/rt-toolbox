@@ -168,12 +168,13 @@ def main():
             # Finish the process if any control variable establishes it
             if stop or timeout:
                 break
+            cleaned_event = line.rstrip('\n\r')
             # Publish event at RabbitMQ server
             try:
                 publish_message(
                     rabbitmq_server_connection,
                     rabbitmq_exchange_config.routing_key,
-                    line,
+                    cleaned_event,
                     pika.BasicProperties(
                         delivery_mode=2,  # Persistent message
                     )
@@ -182,7 +183,6 @@ def main():
                 logger.info("Error sending file line to the RabbitMQ event server.")
                 exit(-2)
             # Log event send
-            cleaned_event = line.rstrip('\n\r')
             logger.debug(f"Message sent: {cleaned_event}.")
             number_of_events += 1
         else:

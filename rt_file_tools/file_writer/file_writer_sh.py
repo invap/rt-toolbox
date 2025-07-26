@@ -208,8 +208,7 @@ def main():
                         # Event received
                         event = body.decode()
                         # Log event reception
-                        cleaned_event = event.rstrip('\n\r')
-                        logger.debug(f"Message received: {cleaned_event}.")
+                        logger.debug(f"Message received: {event}.")
                         # Write event in the output file
                         output_file.write(event+'\n')
                         output_file.flush()
