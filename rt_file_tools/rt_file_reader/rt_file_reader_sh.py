@@ -51,7 +51,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog = "The File Reader for The Runtime Monitor",
         description = "Reads a file line by line and publishes them to an exchange at the RabbitMQ server.",
-        epilog = "Example: python -m rt_file_tools.file_reader.file_reader_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=debug --timeout=120"
+        epilog = "Example: python -m rt_file_tools.rt_file_reader.rt_file_reader_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=debug --timeout=120"
     )
     parser.add_argument("src_file", type=str, help="Path to the file to be read.")
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ event server host.')
