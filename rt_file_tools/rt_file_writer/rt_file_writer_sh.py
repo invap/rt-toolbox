@@ -8,8 +8,8 @@ import signal
 import time
 
 from rt_file_tools.config import config
-from rt_rabbitmq_wrapper.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
-from rt_rabbitmq_wrapper.rabbitmq_server_connections import rabbitmq_server_connection
+from rt_file_tools.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
+from rt_file_tools.rabbitmq_server_connections import rabbitmq_server_connection
 from rt_file_tools.logging_configuration import (
     LoggingLevel,
     LoggingDestination,
