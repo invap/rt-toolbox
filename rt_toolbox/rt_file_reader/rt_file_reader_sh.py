@@ -8,10 +8,10 @@ import signal
 import time
 import pika
 
-from rt_file_tools.config import config
-from rt_file_tools.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
-from rt_file_tools.rabbitmq_server_connections import rabbitmq_server_connection
-from rt_file_tools.logging_configuration import (
+from rt_toolbox.config import config
+from rt_toolbox.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
+from rt_toolbox.rabbitmq_server_connections import rabbitmq_server_connection
+from rt_toolbox.logging_configuration import (
     LoggingLevel,
     LoggingDestination,
     set_up_logging,
@@ -24,7 +24,7 @@ from rt_rabbitmq_wrapper.rabbitmq_utility import (
     connect_to_channel_exchange,
     connect_to_server
 )
-from rt_file_tools.utility import (
+from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
     is_valid_file_with_extension
 )
@@ -53,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog = "The File Reader for The Runtime Monitor",
         description = "Reads a file line by line and publishes them to an exchange at the RabbitMQ server.",
-        epilog = "Example: python -m rt_file_tools.rt_file_reader.rt_file_reader_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=debug --timeout=120"
+        epilog = "Example: python -m rt_toolbox.rt_file_reader.rt_file_reader_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=debug --timeout=120"
     )
     parser.add_argument("src_file", type=str, help="Path to the file to be read.")
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ event server host.')
@@ -95,7 +95,7 @@ def main():
     configure_logging_destination(logging_destination, args.log_file)
     configure_logging_level(logging_level)
     # Create a logger for the RabbitMQ utility component
-    logger = logging.getLogger("rt_file_tools.file_reader_sh")
+    logger = logging.getLogger("rt_toolbox.file_reader_sh")
     logger.info(f"Log verbosity level: {logging_level}.")
     if args.log_file is None:
         logger.info("Log destination: CONSOLE.")

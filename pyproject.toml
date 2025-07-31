@@ -1,7 +1,7 @@
 [project]
-name = "rt-file-tools"
+name = "rt-toolbox"
 version = "0.1.0"
-description = "This project contains an implementation of a file reader and a file writer for The Runtime Monitor constalltion. The rationale behind this tools is that the reade/write lines in a file got as messages from a RabbitMQ exchange."
+description = "This project contains an implementation of useful tools for The Runtime Monitor constalltion. The rationale behind this tools is that the reade/write lines in a file got as messages from a RabbitMQ exchange."
 authors = [
   {name = "Carlos Gustavo Lopez Pombo", email = "clpombo@gmail.com"}
 ]

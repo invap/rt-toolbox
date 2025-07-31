@@ -7,10 +7,10 @@ import signal
 import time
 import argparse
 
-from rt_log_analyzer.config import config
-from rt_log_analyzer.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
-from rt_log_analyzer.rabbitmq_server_connections import rabbitmq_server_connection
-from rt_log_analyzer.logging_configuration import (
+from rt_toolbox.config import config
+from rt_toolbox.rabbitmq_server_configs import rabbitmq_server_config, rabbitmq_exchange_config
+from rt_toolbox.rabbitmq_server_connections import rabbitmq_server_connection
+from rt_toolbox.logging_configuration import (
     LoggingLevel,
     LoggingDestination,
     set_up_logging,
@@ -25,7 +25,7 @@ from rt_rabbitmq_wrapper.rabbitmq_utility import (
     connect_to_channel_exchange,
     declare_queue
 )
-from rt_log_analyzer.utility import (
+from rt_toolbox.utility import (
     is_valid_file_with_extension_nex
 )
 
@@ -95,7 +95,7 @@ def main():
     configure_logging_destination(logging_destination, args.log_file)
     configure_logging_level(logging_level)
     # Create a logger for the RabbitMQ utility component
-    logger = logging.getLogger("rt_file_tools.log_analyzer_sh")
+    logger = logging.getLogger("rt_toolbox.log_analyzer_sh")
     logger.info(f"Log verbosity level: {logging_level}.")
     if args.log_file is None:
         logger.info("Log destination: CONSOLE.")
