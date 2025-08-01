@@ -111,7 +111,7 @@ def main():
             exit(-1)
         dest_file = args.dest_file
     else:
-        dest_file = "./log_analysis.txt"
+        dest_file = "./analysis_stats.txt"
     logger.info(f"Output log analysis file: {dest_file}")
     # Determine timeout
     timeout = args.timeout if args.timeout >= 0 else 0
@@ -201,7 +201,7 @@ def main():
                 try:
                     method, properties, body = get_message(rabbitmq_server_connection)
                 except RabbitMQError:
-                    logger.critical(f"Error receiving event from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+                    logger.critical(f"Error receiving result from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                     exit(-2)
                 if method:  # Message exists
                     # Process message
@@ -210,37 +210,44 @@ def main():
                         logger.info(f"Poison pill received from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                         poison_received = True
                     else:
-                        last_message_time = time.time()
-                        # Event received
-                        log_entry = body.decode()
-                        # Log result reception
-                        cleaned_log_entry = log_entry.rstrip('\n\r')
-                        logger.log(LoggingLevel.DEBUG, f"Result received: {cleaned_log_entry}.")
-                        # Process result
-                        split_log_entry = cleaned_log_entry.split(' - ')
-                        dict_log_entry = {key: value for string in split_log_entry for key, value in [string.split(': ')]}
-                        if "Task started" in dict_log_entry:
-                            trace.append({'task': dict_log_entry['Task started'], 'event': 'finished', 'timestamp': dict_log_entry['Timestamp']})
-                            task_started += 1
-                        elif "Task finished" in dict_log_entry:
-                            trace.append({'task': dict_log_entry['Task finished'], 'event': 'finished', 'timestamp': dict_log_entry['Timestamp']})
-                            task_finished += 1
-                        elif "Checkpoint reached" in dict_log_entry:
-                            trace.append({'checkpoint': dict_log_entry['Checkpoint reached'], 'timestamp': dict_log_entry['Timestamp']})
-                            checkpoints_reached += 1
-                        else:  # Property in dict_log_entry
-                            analyzed_props += 1
-                            match dict_log_entry['Analysis']:
-                                case 'PASSED':
-                                    passed_props += 1
-                                case 'MIGHT FAIL':
-                                    might_fail_props += 1
-                                case 'FAILED':
-                                    failed_props += 1
-                                case _:
-                                    logger.error(f"Invalid analysis result: {dict_log_entry['Analysis']}.")
-                        # Only increment number_of_results is it is a valid result (rules out poisson pill)
-                        number_of_results += 1
+                        if properties.headers and properties.headers.get('type'):
+                            if properties.headers.get('type') == 'log_entry':
+                                last_message_time = time.time()
+                                # Event received
+                                log_entry = body.decode()
+                                # Log result reception
+                                cleaned_log_entry = log_entry.rstrip('\n\r')
+                                logger.log(LoggingLevel.DEBUG, f"Result received: {cleaned_log_entry}.")
+                                # Process result
+                                split_log_entry = cleaned_log_entry.split(' - ')
+                                dict_log_entry = {key: value for string in split_log_entry for key, value in [string.split(': ')]}
+                                if "Task started" in dict_log_entry:
+                                    trace.append({'task': dict_log_entry['Task started'], 'event': 'finished', 'timestamp': dict_log_entry['Timestamp']})
+                                    task_started += 1
+                                elif "Task finished" in dict_log_entry:
+                                    trace.append({'task': dict_log_entry['Task finished'], 'event': 'finished', 'timestamp': dict_log_entry['Timestamp']})
+                                    task_finished += 1
+                                elif "Checkpoint reached" in dict_log_entry:
+                                    trace.append({'checkpoint': dict_log_entry['Checkpoint reached'], 'timestamp': dict_log_entry['Timestamp']})
+                                    checkpoints_reached += 1
+                                else:  # Property in dict_log_entry
+                                    analyzed_props += 1
+                                    match dict_log_entry['Analysis']:
+                                        case 'PASSED':
+                                            passed_props += 1
+                                        case 'MIGHT FAIL':
+                                            might_fail_props += 1
+                                        case 'FAILED':
+                                            failed_props += 1
+                                        case _:
+                                            logger.error(f"Invalid analysis result: {dict_log_entry['Analysis']}.")
+                                # Only increment number_of_results is it is a valid result (rules out poisson pill)
+                                number_of_results += 1
+                            else:
+                                pass
+                        else:
+                            logger.critical(f"Result type received from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port} missing.")
+                            exit(-2)
                     # ACK the message
                     try:
                         ack_message(rabbitmq_server_connection, method.delivery_tag)
