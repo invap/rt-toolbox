@@ -145,7 +145,7 @@ def main():
             exit(-2)
         # Set up the RabbitMQ queue for events at the RabbitMQ server
         try:
-            queue_name = declare_queue(
+            event_queue_name = declare_queue(
                 rabbitmq_server_config,
                 rabbitmq_exchange_config,
                 channel
@@ -157,9 +157,9 @@ def main():
         rabbitmq_server_connection.connection = connection
         rabbitmq_server_connection.channel = channel
         rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
-        rabbitmq_server_connection.queue_name = queue_name
-        # Start getting messages from the RabbitMQ server
-        logger.info(f"Start getting events from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        rabbitmq_server_connection.queue_name = event_queue_name
+        # Start receiving events from the RabbitMQ server
+        logger.info(f"Start receiving events from queue {event_queue_name} - exchange {rabbitmq_exchange_config.exchange} at RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # initialize last_message_time for testing timeout
         last_message_time = time.time()
         start_time_epoch = time.time()
@@ -192,13 +192,13 @@ def main():
                 try:
                     method, properties, body = get_message(rabbitmq_server_connection)
                 except RabbitMQError:
-                    logger.critical(f"Error getting event from RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+                    logger.critical(f"Error receiving event from queue {event_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                     exit(-2)
                 if method:  # Message exists
                     # Process message
                     if properties.headers and properties.headers.get('termination'):
                         # Poison pill received
-                        logger.info(f"Poison pill received from the event exchange at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+                        logger.info(f"Poison pill received from queue {event_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                         poison_received = True
                     else:
                         last_message_time = time.time()
@@ -215,10 +215,10 @@ def main():
                     try:
                         ack_message(rabbitmq_server_connection, method.delivery_tag)
                     except RabbitMQError:
-                        logger.critical(f"Error sending ack to the event exchange at the RabbitMQ event server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+                        logger.critical(f"Error sending ack to the exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ event server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                         exit(-2)
-        # Stop getting messages from the RabbitMQ server
-        logger.info(f"Stop getting events from the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        # Stop receiving messages from the RabbitMQ server
+        logger.info(f"Stop receiving events from queue {event_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if poison_received:
             logger.info(f"Written events: {number_of_messages} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
@@ -232,9 +232,9 @@ def main():
         if connection and connection.is_open:
             try:
                 connection.close()
-                logger.info(f"Connection to RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port} closed.")
+                logger.info(f"Connection to the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port} closed.")
             except Exception as e:
-                logger.error(f"Error closing connection to RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}: {e}.")
+                logger.error(f"Error closing connection to the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}: {e}.")
     exit(0)
 
 

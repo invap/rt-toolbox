@@ -139,7 +139,7 @@ def main():
         rabbitmq_server_connection.channel = channel
         rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
         # Start publishing events to the RabbitMQ server
-        logger.info(f"Start publishing events to RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        logger.info(f"Start sending events from exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Start event acquisition from the file
         start_time_epoch = time.time()
         number_of_events = 0
@@ -179,7 +179,7 @@ def main():
                     )
                 )
             except RabbitMQError:
-                logger.info(f"Error sending event to the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+                logger.info(f"Error sending event to the exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                 exit(-2)
             # Log event send
             logger.debug(f"Event sent: {cleaned_event}.")
@@ -197,12 +197,12 @@ def main():
                 )
             )
         except RabbitMQError:
-            logger.critical(f"Error sending event to the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+            logger.critical(f"Error sending poison pill to the exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
             exit(-2)
         else:
-            logger.info(f"Poison pill sent to the event exchange at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+            logger.info(f"Poison pill sent to the exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Stop publishing events to the RabbitMQ server
-        logger.info(f"Stop publishing events to RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        logger.info(f"Stop publishing events to the exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if completed:
             logger.info(f"Events processed: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, EOF reached.")
@@ -216,9 +216,9 @@ def main():
         if connection and connection.is_open:
             try:
                 connection.close()
-                logger.info(f"Connection to RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port} closed.")
+                logger.info(f"Connection to the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port} closed.")
             except Exception as e:
-                logger.error(f"Error closing connection to RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}: {e}.")
+                logger.error(f"Error closing connection to the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}: {e}.")
     exit(0)
 
 
