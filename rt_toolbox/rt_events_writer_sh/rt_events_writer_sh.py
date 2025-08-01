@@ -63,7 +63,7 @@ def main():
     parser.add_argument('--exchange', type=str, default='my_event_exchange', help='Name of the event exchange at the RabbitMQ server.')
     parser.add_argument("--log_level", type=str, choices=["debug", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file.')
-    parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds to wait for messages after last received, from the RabbitMQ event server (0 = no timeout).")
+    parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds to wait for events after last received, from the RabbitMQ event server (0 = no timeout).")
     # Parse arguments
     args = parser.parse_args()
     # Set up the logging infrastructure
