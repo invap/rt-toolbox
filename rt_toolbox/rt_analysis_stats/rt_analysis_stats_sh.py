@@ -280,9 +280,9 @@ def main():
         if connection and connection.is_open:
             try:
                 connection.close()
-                logger.info(f"Connection to RabbitMQ server at {args.host}:{args.port} closed.")
+                logger.info(f"Connection to RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port} closed.")
             except Exception as e:
-                logger.error(f"Error closing connection to RabbitMQ server at {args.host}:{args.port}: {e}.")
+                logger.error(f"Error closing connection to RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}: {e}.")
     exit(0)
 
 
