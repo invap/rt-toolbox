@@ -53,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog = "The Events Writer for The Runtime Reporter.",
         description = "Writes events received from the events exchange at a RabbitMQ server to a file.",
-        epilog = "Example: python -m rt_toolbox.rt_events_writer_sh.rt_events_writer_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --exchange=events_hub --routing_key=events --log_file=output.log --log_level=event --timeout=120"
+        epilog = "Example: python -m rt_toolbox.rt_events_writer_sh.rt_events_writer_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --exchange=events_hub --log_file=output.log --log_level=event --timeout=120"
     )
     parser.add_argument('dest_file', help='Path to the file to be written.')
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ event server host.')
@@ -131,7 +131,7 @@ def main():
         try:
             connection = connect_to_server(rabbitmq_server_config)
         except RabbitMQError:
-            logger.critical(f"Error setting up the connection to the RabbitMQ server at {args.host}:{args.port}.")
+            logger.critical(f"Error setting up the connection to the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
             exit(-2)
         # Set up the RabbitMQ channel and exchange for log entries with the RabbitMQ server
         try:
@@ -141,18 +141,17 @@ def main():
                 connection
             )
         except RabbitMQError:
-            logger.critical(f"Error setting up the channel and exchange at the RabbitMQ server at {args.host}:{args.port}.")
+            logger.critical(f"Error setting up the channel and exchange at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
             exit(-2)
-        # Set up the RabbitMQ queue and routing key for events with the RabbitMQ server
+        # Set up the RabbitMQ queue for events at the RabbitMQ server
         try:
             queue_name = declare_queue(
                 rabbitmq_server_config,
                 rabbitmq_exchange_config,
-                channel,
-                rabbitmq_exchange_config.routing_key
+                channel
             )
         except RabbitMQError:
-            logger.critical(f"Error declaring and binding queue to the exchange at the RabbitMQ server at {args.host}:{args.port}.")
+            logger.critical(f"Error declaring and binding queue to the exchange at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
             exit(-2)
         # Set up connection for evens with the RabbitMQ server
         rabbitmq_server_connection.connection = connection

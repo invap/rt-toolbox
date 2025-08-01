@@ -173,7 +173,6 @@ def main():
             try:
                 publish_message(
                     rabbitmq_server_connection,
-                    '',
                     cleaned_event,
                     pika.BasicProperties(
                         delivery_mode=2,  # Persistent message
@@ -187,11 +186,10 @@ def main():
             number_of_events += 1
         else:
             completed = True
-        # Send poison pill with the events routing_key to the RabbitMQ server
+        # Send poison pill with the events exchange at the RabbitMQ server
         try:
             publish_message(
                 rabbitmq_server_connection,
-                '',
                 '',
                 pika.BasicProperties(
                     delivery_mode=2,
