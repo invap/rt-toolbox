@@ -163,7 +163,7 @@ def main():
         # initialize last_message_time for testing timeout
         last_message_time = time.time()
         start_time_epoch = time.time()
-        number_of_messages = 0
+        number_of_events = 0
         # Control variables
         poison_received = False
         stop = False
@@ -209,8 +209,8 @@ def main():
                         # Write event in the output file
                         output_file.write(event+'\n')
                         output_file.flush()
-                        # Only increment number_of_messages is it is a valid event (rules out poisson pill)
-                        number_of_messages += 1
+                        # Only increment number_of_events is it is a valid event (rules out poisson pill)
+                        number_of_events += 1
                     # ACK the message
                     try:
                         ack_message(rabbitmq_server_connection, method.delivery_tag)
@@ -221,13 +221,13 @@ def main():
         logger.info(f"Stop receiving events from queue {event_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if poison_received:
-            logger.info(f"Written events: {number_of_messages} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
+            logger.info(f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
         elif stop:
-            logger.info(f"Written events: {number_of_messages} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
+            logger.info(f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
         elif abort:
-            logger.info(f"Written events: {number_of_messages} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, message reception timeout reached ({time.time()-last_message_time} secs.).")
+            logger.info(f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, event reception timeout reached ({time.time()-last_message_time} secs.).")
         else:
-            logger.info(f"Written events: {number_of_messages} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason.")
+            logger.info(f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:

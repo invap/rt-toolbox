@@ -123,7 +123,6 @@ def main():
     rabbitmq_server_config.password = args.password
     # RabbitMQ exchange configuration
     rabbitmq_exchange_config.exchange = args.exchange
-    rabbitmq_exchange_config.routing_key = args.routing_key
     # Other configuration
     config.timeout = timeout
     # Open the output file and the AMQP connection
@@ -134,7 +133,7 @@ def main():
         except RabbitMQError:
             logger.critical(f"Error setting up the connection to the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
             exit(-2)
-        # Set up the RabbitMQ channel and exchange for log entries with the RabbitMQ server
+        # Set up the RabbitMQ channel and exchange for results with the RabbitMQ server
         try:
             channel = connect_to_channel_exchange(
                 rabbitmq_server_config,
@@ -144,7 +143,7 @@ def main():
         except RabbitMQError:
             logger.critical(f"Error setting up the channel and exchange at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
             exit(-2)
-        # Set up the RabbitMQ queue and routing key for log entries with the RabbitMQ server
+        # Set up the RabbitMQ queue for results with the RabbitMQ server
         try:
             result_queue_name = declare_queue(
                 rabbitmq_server_config,
@@ -154,7 +153,7 @@ def main():
         except RabbitMQError:
             logger.critical(f"Error declaring and binding queue to the exchange at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
             exit(-2)
-        # Set up connection for log entries with the RabbitMQ server
+        # Set up connection for results with the RabbitMQ server
         rabbitmq_server_connection.connection = connection
         rabbitmq_server_connection.channel = channel
         rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
@@ -173,7 +172,7 @@ def main():
         # initialize last_message_time for testing timeout
         last_message_time = time.time()
         start_time_epoch = time.time()
-        number_of_log_entries = 0
+        number_of_results = 0
         # Control variables
         poison_received = False
         stop = False
@@ -181,24 +180,24 @@ def main():
         while not poison_received and not stop and not timeout:
             # Handle SIGINT
             if signal_flags['stop']:
-                logger.info("SIGINT received. Stopping the log entry reception process.")
+                logger.info("SIGINT received. Stopping the results reception process.")
                 stop = True
             # Handle SIGTSTP
             if signal_flags['pause']:
-                logger.info("SIGTSTP received. Pausing the log entry reception process.")
+                logger.info("SIGTSTP received. Pausing the results reception process.")
                 while signal_flags['pause'] and not signal_flags['stop']:
                     time.sleep(1)  # Efficiently wait for signals
                 if signal_flags['stop']:
-                    logger.info("SIGINT received. Stopping the log entry reception process.")
+                    logger.info("SIGINT received. Stopping the results reception process.")
                     stop = True
                 if not signal_flags['pause']:
-                    logger.info("SIGTSTP received. Resuming the log entry reception process.")
+                    logger.info("SIGTSTP received. Resuming the results reception process.")
             # Timeout handling for result reception
             if 0 < config.timeout < (time.time() - last_message_time):
                 timeout = True
-            # Process log entry only if temination has not been decided
+            # Process result only if temination has not been decided
             if not stop and not timeout:
-                # Get log entry from RabbitMQ
+                # Get result from RabbitMQ
                 try:
                     method, properties, body = get_message(rabbitmq_server_connection)
                 except RabbitMQError:
@@ -214,10 +213,10 @@ def main():
                         last_message_time = time.time()
                         # Event received
                         log_entry = body.decode()
-                        # Log log entry reception
+                        # Log result reception
                         cleaned_log_entry = log_entry.rstrip('\n\r')
                         logger.log(LoggingLevel.DEBUG, f"Result received: {cleaned_log_entry}.")
-                        # Process log entry
+                        # Process result
                         split_log_entry = cleaned_log_entry.split(' - ')
                         dict_log_entry = {key: value for string in split_log_entry for key, value in [string.split(': ')]}
                         if "Task started" in dict_log_entry:
@@ -240,8 +239,8 @@ def main():
                                     failed_props += 1
                                 case _:
                                     logger.error(f"Invalid analysis result: {dict_log_entry['Analysis']}.")
-                        # Only increment number_of_log_entries is it is a valid log entry (rules out poisson pill)
-                        number_of_log_entries += 1
+                        # Only increment number_of_results is it is a valid result (rules out poisson pill)
+                        number_of_results += 1
                     # ACK the message
                     try:
                         ack_message(rabbitmq_server_connection, method.delivery_tag)
@@ -252,7 +251,7 @@ def main():
         logger.info(f"Stop receiving events from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Write the analysis results
         output_file.write("--------------- Analysis Statistics ---------------\n")
-        output_file.write(f"Processed log entries: {number_of_log_entries}.\n")
+        output_file.write(f"Processed analysis results: {number_of_results}.\n")
         output_file.write("---------------------------------------------------\n")
         output_file.write(f"Trace run: {trace}.\n")
         output_file.write(f"Trace length (events): {len(trace)}.\n")
@@ -269,13 +268,13 @@ def main():
         output_file.flush()
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if poison_received:
-            logger.info(f"Processed analysis results: {number_of_log_entries} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
+            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
         elif stop:
-            logger.info(f"Processed analysis results: {number_of_log_entries} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
+            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
         elif timeout:
-            logger.info(f"Processed analysis results: {number_of_log_entries} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, message reception timeout reached ({time.time()-last_message_time} secs.).")
+            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, message reception timeout reached ({time.time()-last_message_time} secs.).")
         else:
-            logger.info(f"Processed analysis results: {number_of_log_entries} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason.")
+            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:
