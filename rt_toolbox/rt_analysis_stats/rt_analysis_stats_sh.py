@@ -53,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog = "The Analysis statistics for The Runtime Monitor.",
         description="Writes the results received from a RabbitMQ server to files.",
-        epilog = "Example: python -m rt_analysis_stats.rt_analysis_stats_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
+        epilog = "Example: python -m rt_toolbox.rt_analysis_stats.rt_analysis_stats_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
     )
     parser.add_argument('dest_file', help='Log analysis file name.')
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ logging server host.')
