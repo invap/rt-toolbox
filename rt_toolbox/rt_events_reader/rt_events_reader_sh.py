@@ -51,20 +51,19 @@ def main():
 
     # Argument processing
     parser = argparse.ArgumentParser(
-        prog = "The File Reader for The Runtime Monitor",
-        description = "Reads a file line by line and publishes them to an exchange at the RabbitMQ server.",
-        epilog = "Example: python -m rt_toolbox.rt_file_reader.rt_file_reader_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=debug --timeout=120"
+        prog = "The Events Reader for The Runtime Monitor",
+        description = "Reads events from a file and publishes them in the events exchange at a RabbitMQ server.",
+        epilog = "Example: python -m rt_toolbox.rt_events_reader.rt_events_reader_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=debug --timeout=120"
     )
     parser.add_argument("src_file", type=str, help="Path to the file to be read.")
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ event server host.')
     parser.add_argument('--port', type=int, default=5672, help='RabbitMQ event server port.')
     parser.add_argument('--user', default='guest', help='RabbitMQ event server user.')
     parser.add_argument('--password', default='guest', help='RabbitMQ event server password.')
-    parser.add_argument('--exchange', type=str, default='my_exchange', help='Name of the exchange at the RabbitMQ server.')
-    parser.add_argument('--routing_key', type=str, default='my_routing_key', help='Name of the routing key used at the RabbitMQ server.')
+    parser.add_argument('--exchange', type=str, default='my_event_exchange', help='Name of the event exchange at the RabbitMQ server.')
     parser.add_argument("--log_level", type=str, choices=["debug", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file.')
-    parser.add_argument("--timeout", type=int, default=0, help="Timeout for the file reading process in seconds (0 = no timeout).")
+    parser.add_argument("--timeout", type=int, default=0, help="Timeout for event acquisition from file in seconds (0 = no timeout).")
     # Parse arguments
     args = parser.parse_args()
     # Set up the logging infrastructure
@@ -95,7 +94,7 @@ def main():
     configure_logging_destination(logging_destination, args.log_file)
     configure_logging_level(logging_level)
     # Create a logger for the RabbitMQ utility component
-    logger = logging.getLogger("rt_toolbox.file_reader_sh")
+    logger = logging.getLogger("rt_toolbox.rt_events_reader.rt_events_reader_sh")
     logger.info(f"Log verbosity level: {logging_level}.")
     if args.log_file is None:
         logger.info("Log destination: CONSOLE.")
@@ -112,7 +111,7 @@ def main():
     logger.info(f"Input file: {args.src_file}")
     # Determine timeout
     timeout = args.timeout if args.timeout >= 0 else 0
-    logger.info(f"Timeout for file line reading from the file: {timeout} seconds.")
+    logger.info(f"Timeout for event acquisition from file: {timeout} seconds.")
     # RabbitMQ server configuration
     rabbitmq_server_config.host = args.host
     rabbitmq_server_config.port = args.port
@@ -120,7 +119,6 @@ def main():
     rabbitmq_server_config.password = args.password
     # RabbitMQ exchange configuration
     rabbitmq_exchange_config.exchange = args.exchange
-    rabbitmq_exchange_config.routing_key = args.routing_key
     # Other configuration
     config.timeout = timeout
     with (open(args.src_file, "r") as input_file):
@@ -141,7 +139,7 @@ def main():
         rabbitmq_server_connection.channel = channel
         rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
         # Start publishing events to the RabbitMQ server
-        logger.info(f"Start publishing file lines to RabbitMQ server at {args.host}:{args.port}.")
+        logger.info(f"Start publishing events to RabbitMQ server at {args.host}:{args.port}.")
         # Start event acquisition from the file
         start_time_epoch = time.time()
         number_of_events = 0
@@ -152,18 +150,18 @@ def main():
         for line in input_file:
             # Handle SIGINT
             if signal_flags['stop']:
-                logger.info("SIGINT received. Stopping the file line reading process.")
+                logger.info("SIGINT received. Stopping the file reading process.")
                 stop = True
             # Handle SIGTSTP
             if signal_flags['pause']:
-                logger.info("SIGTSTP received. Pausing the file line reading process.")
+                logger.info("SIGTSTP received. Pausing the file reading process.")
                 while signal_flags['pause'] and not signal_flags['stop']:
                     time.sleep(1)  # Efficiently wait for signals
                 if signal_flags['stop']:
-                    logger.info("SIGINT received. Stopping the file line reading process.")
+                    logger.info("SIGINT received. Stopping the file reading process.")
                     stop = True
                 if signal_flags['pause']:
-                    logger.info("SIGTSTP received. Resuming the file line reading process.")
+                    logger.info("SIGTSTP received. Resuming the file reading process.")
             # Timeout handling for event acquisition.
             if config.timeout != 0 and time.time() - start_time_epoch >= config.timeout:
                 timeout = True
@@ -175,17 +173,17 @@ def main():
             try:
                 publish_message(
                     rabbitmq_server_connection,
-                    rabbitmq_exchange_config.routing_key,
+                    '',
                     cleaned_event,
                     pika.BasicProperties(
                         delivery_mode=2,  # Persistent message
                     )
                 )
             except RabbitMQError:
-                logger.info("Error sending file line to the RabbitMQ event server.")
+                logger.info(f"Error sending event to the RabbitMQ server at {args.host}:{args.port}.")
                 exit(-2)
             # Log event send
-            logger.debug(f"Message sent: {cleaned_event}.")
+            logger.debug(f"Event sent: {cleaned_event}.")
             number_of_events += 1
         else:
             completed = True
@@ -193,7 +191,7 @@ def main():
         try:
             publish_message(
                 rabbitmq_server_connection,
-                rabbitmq_exchange_config.routing_key,
+                '',
                 '',
                 pika.BasicProperties(
                     delivery_mode=2,
@@ -201,21 +199,21 @@ def main():
                 )
             )
         except RabbitMQError:
-            logger.info(f"Error sending with the {rabbitmq_exchange_config.routing_key} routing_key to the RabbitMQ server.")
+            logger.info(f"Error sending event to the RabbitMQ server at {args.host}:{args.port}.")
             exit(-2)
         else:
-            logger.info(f"Poison pill sent with the {rabbitmq_exchange_config.routing_key} routing_key to the RabbitMQ server.")
+            logger.info(f"Poison pill sent to the event exchange at the RabbitMQ server at {args.host}:{args.port}.")
         # Stop publishing events to the RabbitMQ server
-        logger.info(f"Stop publishing file lines to RabbitMQ server at {args.host}:{args.port}.")
+        logger.info(f"Stop publishing events to RabbitMQ server at {args.host}:{args.port}.")
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if completed:
-            logger.info(f"Read lines: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, EOF reached.")
+            logger.info(f"Events processed: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, EOF reached.")
         elif timeout:
-            logger.info(f"Read lines: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, timeout reached.")
+            logger.info(f"Events processed: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, timeout reached.")
         elif stop:
-            logger.info(f"Read lines: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
+            logger.info(f"Events processed: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
         else:
-            logger.info(f"Read lines: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, unknown reason.")
+            logger.info(f"Events processed: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, unknown reason.")
         # Close connection if it exists
         if connection and connection.is_open:
             try:
