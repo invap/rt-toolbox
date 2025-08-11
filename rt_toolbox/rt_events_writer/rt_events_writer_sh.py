@@ -53,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog = "The Events Writer for The Runtime Reporter.",
         description = "Writes events received from the events exchange at a RabbitMQ server to a file.",
-        epilog = "Example: python -m rt_toolbox.rt_events_writer_sh.rt_events_writer_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --exchange=events_hub --log_file=output.log --log_level=event --timeout=120"
+        epilog = "Example: python -m rt_toolbox.rt_events_writer.rt_events_writer /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --exchange=events_hub --log_file=output.log --log_level=event --timeout=120"
     )
     parser.add_argument('dest_file', help='Path to the file to be written.')
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ event server host.')
@@ -94,7 +94,7 @@ def main():
     configure_logging_destination(logging_destination, args.log_file)
     configure_logging_level(logging_level)
     # Create a logger for the RabbitMQ utility component
-    logger = logging.getLogger("rt_toolbox.rt_events_writer.rt_events_writer_sh")
+    logger = logging.getLogger("rt_toolbox.rt_events_writer.rt_events_writer")
     logger.info(f"Log verbosity level: {logging_level}.")
     if args.log_file is None:
         logger.info("Log destination: CONSOLE.")
