@@ -60,7 +60,7 @@ def main():
     parser.add_argument('--port', type=int, default=5672, help='RabbitMQ logging server port.')
     parser.add_argument('--user', default='guest', help='RabbitMQ logging server user.')
     parser.add_argument('--password', default='guest', help='RabbitMQ logging server password.')
-    parser.add_argument('--exchange', type=str, default='my_result_exchange', help='Name of the results exchange at the RabbitMQ logging server.')
+    parser.add_argument('--exchange', type=str, default='my_result_log_exchange', help='Name of the results exchange at the RabbitMQ logging server.')
     parser.add_argument("--log_level", type=str, choices=["debug", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file.')
     parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds to wait for results after last received, from the RabbitMQ event server (0 = no timeout).")

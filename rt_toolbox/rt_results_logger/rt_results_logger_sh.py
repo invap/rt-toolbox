@@ -51,16 +51,16 @@ def main():
 
     # Argument processing
     parser = argparse.ArgumentParser(
-        prog = "The Analysis statistics for The Runtime Monitor.",
-        description="Writes the results received from a RabbitMQ server to files.",
-        epilog = "Example: python -m rt_toolbox.rt_results_writer.rt_results_writer_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
+        prog = "The Analysis Results logger for The Runtime Monitor.",
+        description="Logs the analysis results received from a RabbitMQ server to files.",
+        epilog = "Example: python -m rt_toolbox.rt_results_logger.rt_results_writer_sh /path/to/file --host=https://myrabbitmq.org.ar --port=5672 --user=my_user --password=my_password --log_file=output.log --log_level=event --timeout=120"
     )
     parser.add_argument('dest_file', help='Log analysis file name.')
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ logging server host.')
     parser.add_argument('--port', type=int, default=5672, help='RabbitMQ logging server port.')
     parser.add_argument('--user', default='guest', help='RabbitMQ logging server user.')
     parser.add_argument('--password', default='guest', help='RabbitMQ logging server password.')
-    parser.add_argument('--exchange', type=str, default='my_result_exchange', help='Name of the results exchange at the RabbitMQ logging server.')
+    parser.add_argument('--exchange', type=str, default='my_result_log_exchange', help='Name of the results logger exchange at the RabbitMQ logging server.')
     parser.add_argument("--log_level", type=str, choices=["debug", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
     parser.add_argument('--log_file', help='Path to log file.')
     parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds to wait for results after last received, from the RabbitMQ event server (0 = no timeout).")
@@ -159,7 +159,7 @@ def main():
         rabbitmq_server_connection.exchange = rabbitmq_exchange_config.exchange
         rabbitmq_server_connection.queue_name = result_queue_name
         # Start receiving results from the RabbitMQ server
-        logger.info(f"Start receiving results from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        logger.info(f"Start receiving analysis results from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Variables in the log analysis
         trace = []
         task_started = 0
@@ -201,7 +201,7 @@ def main():
                 try:
                     method, properties, body = get_message(rabbitmq_server_connection)
                 except RabbitMQError:
-                    logger.critical(f"Error receiving result from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+                    logger.critical(f"Error receiving analysis result from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                     exit(-2)
                 if method:  # Message exists
                     # Process message
@@ -242,7 +242,7 @@ def main():
                         logger.critical(f"Error sending ack to the exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ event server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
                         exit(-2)
         # Stop getting events from the RabbitMQ server
-        logger.info(f"Stop receiving events from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
+        logger.info(f"Stop receiving analysis results from queue {result_queue_name} - exchange {rabbitmq_exchange_config.exchange} at the RabbitMQ server at {rabbitmq_server_config.host}:{rabbitmq_server_config.port}.")
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if poison_received:
             logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
