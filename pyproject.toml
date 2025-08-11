@@ -1,7 +1,7 @@
 [project]
 name = "rt-toolbox"
 version = "0.1.0"
-description = "This project contains an implementation of useful tools for The Runtime Monitor constalltion. The rationale behind this tools is that the reade/write lines in a file got as messages from a RabbitMQ exchange."
+description = "This project contains an implementation of useful tools for The Runtime Monitor constalltion. The rationale behind this tools is that they play the role the extremities of The Runtime Monitor connected through RabbitMQ exchanges."
 authors = [
   {name = "Carlos Gustavo Lopez Pombo", email = "clpombo@gmail.com"}
 ]
@@ -9,7 +9,7 @@ license = "SPDX-License-Identifier: AGPL-3.0-or-later"
 readme = "README.md"
 requires-python = ">=3.11,<4.0"
 packages = [
-    { include = "rt_file_tools"},
+    { include = "rt_toolbox"},
 ]
 dependencies = [
     "pika (~=1.3.2)",
