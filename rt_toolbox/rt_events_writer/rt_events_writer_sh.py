@@ -3,10 +3,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Lopez-Pombo-Commercial
 
 import argparse
+import json
 import logging
 import signal
 import time
 
+from rt_rabbitmq_wrapper.rabbitmq_utility import RabbitMQError
+from rt_rabbitmq_wrapper.exchange_types.event.event_dict_codec import EventDictCoDec
+from rt_rabbitmq_wrapper.exchange_types.event.event_csv_codec import EventCSVCoDec
+from rt_rabbitmq_wrapper.exchange_types.event.event_codec_errors import (
+    EventDictError,
+    EventTypeError
+)
+
+from rt_toolbox.utility import (
+    is_valid_file_with_extension_nex,
+    is_valid_file_with_extension
+)
 from rt_toolbox.config import config
 from rt_toolbox.logging_configuration import (
     LoggingLevel,
@@ -15,14 +28,7 @@ from rt_toolbox.logging_configuration import (
     configure_logging_destination,
     configure_logging_level
 )
-from rt_rabbitmq_wrapper.rabbitmq_utility import (
-    RabbitMQError
-)
 from rt_toolbox.rt_events_writer import rabbitmq_server_connections
-from rt_toolbox.utility import (
-    is_valid_file_with_extension_nex,
-    is_valid_file_with_extension
-)
 
 
 # Errors:
@@ -116,7 +122,7 @@ def main():
     # Start receiving events from the RabbitMQ server
     logger.info(f"Start receiving events from queue {rabbitmq_server_connections.rabbitmq_event_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}.")
     # Open the output file and the AMQP connection
-    with open(dest_file, "w") as output_file:
+    with open(dest_file, "wb") as output_file:
         # initialize last_message_time for testing timeout
         last_message_time = time.time()
         start_time_epoch = time.time()
@@ -160,14 +166,24 @@ def main():
                     else:
                         last_message_time = time.time()
                         # Event received
-                        event = body.decode()
-                        # Log event reception
-                        logger.debug(f"Event received: {event}.")
-                        # Write event in the output file
-                        output_file.write(event+'\n')
-                        output_file.flush()
-                        # Only increment number_of_events is it is a valid event (rules out poisson pill)
-                        number_of_events += 1
+                        event_dict = json.loads(body.decode())
+                        try:
+                            event = EventDictCoDec.from_dict(event_dict)
+                            event_csv = EventCSVCoDec.to_csv(event)
+                        except EventDictError:
+                            logger.info(f"Error parsing event dictionary: {event_dict}.")
+                            exit(-3)
+                        except EventTypeError:
+                            logger.info(f"Error building dictionary from event: {event}.")
+                            exit(-3)
+                        else:
+                            output_file.write(event_csv.encode("unicode_escape"))
+                            output_file.write(b"\n")
+                            output_file.flush()
+                            # Log event received
+                            logger.debug(f"Received event: {event_dict}.")
+                            # Only increment number_of_events is it is a valid event (rules out poisson pill)
+                            number_of_events += 1
                     # ACK the message
                     try:
                         rabbitmq_server_connections.rabbitmq_event_server_connection.ack_message(method.delivery_tag)
