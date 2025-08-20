@@ -208,14 +208,10 @@ def main():
                                         logger.critical(f"Error building dictionary from specification: {specification}.")
                                         exit(-3)
                                     else:
-                                        if isinstance(specification, PySpecification):
-                                            filename = specification.property_name+"@"+specification.timestamp+".py"
-                                        elif isinstance(specification, SymPySpecification):
-                                            filename = specification.property_name+"@"+specification.timestamp+".py"
+                                        if isinstance(specification, PySpecification) or isinstance(specification, SymPySpecification):
+                                            filename = f"{specification.property_name}@{specification.timestamp}.py"
                                         else: # isinstance(specification, SMT2Specification)
-                                            filename = specification.property_name+"@"+specification.timestamp+".smt2"
-                                        print(filename)
-                                        print(specification.specification)
+                                            filename = f"{specification.property_name}@{specification.timestamp}.smt2"
                                         with open(filename, "w") as spec_file:
                                             spec_file.write(specification.specification)
                                         spec_file.close()
