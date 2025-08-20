@@ -117,7 +117,7 @@ def main():
         exit(-1)
     logger.info(f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}")
     rabbitmq_server_connections.build_rabbitmq_server_connections(args.rabbitmq_config_file)
-    # Start receiving events from the RabbitMQ server
+    # Start sending events to the RabbitMQ server
     logger.info(f"Start sending events to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}.")
     with (open(args.src_file, "r") as input_file):
         # Start event acquisition from the file
@@ -187,7 +187,7 @@ def main():
                 )
             )
         except RabbitMQError:
-            logger.critical(f"Error sending poison pill to the exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}.")
+            logger.critical(f"Error sending poison pill to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}.")
             exit(-2)
         else:
             logger.info(f"Poison pill sent to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}.")
