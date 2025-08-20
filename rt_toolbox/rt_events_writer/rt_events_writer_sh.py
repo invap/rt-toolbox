@@ -34,6 +34,7 @@ from rt_toolbox.rt_events_writer import rabbitmq_server_connections
 # Errors:
 # -1: Output file error
 # -2: RabbitMQ server setup error
+# -3: Event processing error
 def main():
     # Signal handling flags
     signal_flags = {'stop': False, 'pause': False}

@@ -33,8 +33,9 @@ from rt_rabbitmq_wrapper.exchange_types.event.event_codec_errors import (
 
 
 # Errors:
-# -1: Output file error
+# -1: Input file error
 # -2: RabbitMQ server setup error
+# -3: Event processing error
 def main():
     # Signal handling flags
     signal_flags = {'stop': False, 'pause': False}

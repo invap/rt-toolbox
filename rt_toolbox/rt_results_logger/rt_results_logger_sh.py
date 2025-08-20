@@ -42,7 +42,7 @@ from rt_toolbox.rt_results_logger import rabbitmq_server_connections
 # Errors:
 # -1: Output file error
 # -2: RabbitMQ server setup error
-# -3: Exchange format error
+# -3: Analysis result error
 def main():
     # Signal handling flags
     signal_flags = {'stop': False, 'pause': False}
