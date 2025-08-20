@@ -20,7 +20,7 @@ from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
     is_valid_file_with_extension
 )
-from rt_toolbox.config import config
+from rt_toolbox.rt_events_writer.config import config
 from rt_toolbox.logging_configuration import (
     LoggingLevel,
     LoggingDestination,

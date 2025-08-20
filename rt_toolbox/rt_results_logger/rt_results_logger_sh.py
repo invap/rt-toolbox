@@ -21,15 +21,14 @@ from rt_rabbitmq_wrapper.exchange_types.specification.specification_codec_errors
 )
 from rt_rabbitmq_wrapper.exchange_types.specification.specification import (
     PySpecification,
-    SymPySpecification,
-    SMT2Specification
+    SymPySpecification
 )
 
 from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
     is_valid_file_with_extension
 )
-from rt_toolbox.config import config
+from rt_toolbox.rt_results_logger.config import config
 from rt_toolbox.logging_configuration import (
     LoggingLevel,
     LoggingDestination,

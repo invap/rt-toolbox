@@ -9,7 +9,7 @@ import signal
 import time
 import pika
 
-from rt_toolbox.config import config
+from rt_toolbox.rt_events_reader.config import config
 from rt_toolbox.rt_events_reader import rabbitmq_server_connections
 from rt_toolbox.logging_configuration import (
     LoggingLevel,
