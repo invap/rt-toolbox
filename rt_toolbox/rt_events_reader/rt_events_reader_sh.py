@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Fundacion-Sadosky-Commercial
 
 import argparse
+import json
 import logging
 import signal
 import time
@@ -17,19 +18,23 @@ from rt_toolbox.logging_configuration import (
     configure_logging_destination,
     configure_logging_level
 )
-from rt_rabbitmq_wrapper.rabbitmq_utility import (
-    RabbitMQError
-)
 from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
     is_valid_file_with_extension
+)
+
+from rt_rabbitmq_wrapper.rabbitmq_utility import RabbitMQError
+from rt_rabbitmq_wrapper.exchange_types.event.event_dict_codec import EventDictCoDec
+from rt_rabbitmq_wrapper.exchange_types.event.event_csv_codec import EventCSVCoDec
+from rt_rabbitmq_wrapper.exchange_types.event.event_codec_errors import (
+    EventCSVError,
+    EventTypeError
 )
 
 
 # Errors:
 # -1: Output file error
 # -2: RabbitMQ server setup error
-
 def main():
     # Signal handling flags
     signal_flags = {'stop': False, 'pause': False}
@@ -103,7 +108,7 @@ def main():
     logger.info(f"Input file: {args.src_file}")
     # Determine timeout
     config.timeout = args.timeout if args.timeout >= 0 else 0
-    logger.info(f"Timeout for event acquisition from file: {config.timeout} seconds.")
+    logger.info(f"Timeout for event read from file: {config.timeout} seconds.")
     # RabbitMQ infrastructure configuration
     valid = is_valid_file_with_extension(args.rabbitmq_config_file, "toml")
     if not valid:
@@ -142,20 +147,32 @@ def main():
             # Finish the process if any control variable establishes it
             if stop or timeout:
                 break
-            cleaned_event = line.rstrip('\n\r')
+            event_csv = line.rstrip('\n\r')
             # Publish event at RabbitMQ server
             try:
+                event = EventCSVCoDec.from_csv(event_csv)
+            except EventCSVError:
+                logger.info(f"Error parsing event csv: [ {event_csv} ].")
+                exit(-3)
+            try:
+                event_dict = EventDictCoDec.to_dict(event)
+            except EventTypeError:
+                logger.info(f"Error building dictionary from event: [ {event} ].")
+                exit(-3)
+            try:
                 rabbitmq_server_connections.rabbitmq_event_server_connection.publish_message(
-                    cleaned_event,
+                    json.dumps(event_dict, indent=4),
                     pika.BasicProperties(
                         delivery_mode=2,  # Persistent message
                     )
                 )
             except RabbitMQError:
-                logger.info(f"Error sending event to the exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}.")
+                logger.info(
+                    f"Error sending event to the exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}.")
                 exit(-2)
             # Log event send
-            logger.debug(f"Event sent: {cleaned_event}.")
+            logger.debug(f"Sent event: {event_dict}.")
+            # Only increment number_of_events is it is a valid event
             number_of_events += 1
         else:
             completed = True
@@ -179,13 +196,13 @@ def main():
         rabbitmq_server_connections.rabbitmq_event_server_connection.close()
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if completed:
-            logger.info(f"Events received: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, EOF reached.")
+            logger.info(f"Events read: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, EOF reached.")
         elif timeout:
-            logger.info(f"Events received: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, timeout reached.")
+            logger.info(f"Events read: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, timeout reached.")
         elif stop:
-            logger.info(f"Events received: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
+            logger.info(f"Events read: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
         else:
-            logger.info(f"Events received: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, unknown reason.")
+            logger.info(f"Events read: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, unknown reason.")
     exit(0)
 
 
