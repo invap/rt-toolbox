@@ -89,6 +89,7 @@ def main():
         logger.critical(f"RabbitMQ infrastructure configuration file error.")
         exit(-1)
     logger.info(f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}")
+    # Create RabbitMQ communication infrastructure
     rabbitmq_server_connections.build_rabbitmq_server_connections(args.rabbitmq_config_file)
     # Start sending the monitor dispatch to the RabbitMQ server
     logger.info(f"Start sending the monitor dispatch to exchange {rabbitmq_server_connections.rabbitmq_dispatch_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_dispatch_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_dispatch_server_connection.server_info.port}.")
@@ -112,10 +113,10 @@ def main():
             exit(-2)
         # Log monitor dispatch send
         logger.debug(f"Sent monitor dispatch: {dispatch_dict}.")
-        # Stop publishing events to the RabbitMQ server
-        logger.info(f"Stop sending the monitor dispatch to exchange {rabbitmq_server_connections.rabbitmq_dispatch_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_dispatch_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_dispatch_server_connection.server_info.port}.")
-        # Close connection if it exists
-        rabbitmq_server_connections.rabbitmq_dispatch_server_connection.close()
+    # Stop publishing events to the RabbitMQ server
+    logger.info(f"Stop sending the monitor dispatch to exchange {rabbitmq_server_connections.rabbitmq_dispatch_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_dispatch_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_dispatch_server_connection.server_info.port}.")
+    # Close connection if it exists
+    rabbitmq_server_connections.rabbitmq_dispatch_server_connection.close()
     exit(0)
 
 

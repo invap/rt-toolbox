@@ -60,9 +60,9 @@ def main():
 
     # Argument processing
     parser = argparse.ArgumentParser(
-        prog = "The Analysis Results logger for The Runtime Monitor.",
+        prog="The Analysis Results logger for The Runtime Monitor.",
         description="Logs the analysis results received from a RabbitMQ server to files.",
-        epilog = "Example: python -m rt_toolbox.rt_results_logger.rt_results_logger_sh /path/to/file --rabbitmq_config_file=./rabbitmq_config.toml --log_level=debug --timeout=120"
+        epilog="Example: python -m rt_toolbox.rt_results_logger.rt_results_logger_sh /path/to/file --rabbitmq_config_file=./rabbitmq_config.toml --log_level=debug --timeout=120"
     )
     parser.add_argument('dest_file', help='Log analysis file name.')
     parser.add_argument("--rabbitmq_config_file", type=str, default='./rabbitmq_config.toml', help='Path to the TOML file containing the RabbitMQ server configuration.')
@@ -127,6 +127,7 @@ def main():
         logger.critical(f"RabbitMQ infrastructure configuration file error.")
         exit(-1)
     logger.info(f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}")
+    # Create RabbitMQ communication infrastructure
     rabbitmq_server_connections.build_rabbitmq_server_connections(args.rabbitmq_config_file)
     # Start receiving verdicts from the RabbitMQ server
     logger.info(f"Start receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
