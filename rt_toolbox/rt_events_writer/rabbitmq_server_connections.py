@@ -40,7 +40,7 @@ def build_rabbitmq_server_connections(file_path):
         exit(-2)
     # Configure events exchange
     try:
-        events_conf_dict = rabbitmq_exchange_dict["events"]
+        events_conf_dict = rabbitmq_exchange_dict["exchanges"]["events"]
     except KeyError:
         host, port, user, password, connection_attempts, retry_delay, exchange, exchange_type = "localhost", 5672, "guest", "guest", 5, 3, "events_exchange", "fanout"
     else:
