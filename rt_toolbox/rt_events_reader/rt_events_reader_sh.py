@@ -3,8 +3,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Fundacion-Sadosky-Commercial
 
 import argparse
-import logging
 import signal
+import threading
+# import wx
+import logging
+# Create a logger for the reporter component
+logger = None
 
 from rt_toolbox.rt_events_reader.config import config
 from rt_toolbox.rt_events_reader import rabbitmq_server_connections
@@ -16,19 +20,14 @@ from rt_toolbox.logging_configuration import (
     configure_logging_level
 )
 from rt_toolbox.rt_events_reader.errors.events_reader_errors import EventsReaderError
-from rt_toolbox.rt_events_reader.events_reader import rt_events_reader_runner
+from rt_toolbox.rt_events_reader.events_reader import EventsReader
 from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
     is_valid_file_with_extension
 )
 
 
-# Exit codes:
-# -1: Input file error
-# -2: RabbitMQ configuration error
-# -3: Events reader error
-# -4: Unexpected error
-def main():
+def rt_events_reader_runner(src_file):
     # Signal handling flags
     signal_flags = {'stop': False, 'pause': False}
 
@@ -43,6 +42,36 @@ def main():
     signal.signal(signal.SIGINT, sigint_handler)
     signal.signal(signal.SIGTSTP, sigtstp_handler)
 
+    # Initiating wx application
+    # app = wx.App()
+    # Create reporter
+    reporter = EventsReader(src_file, signal_flags)
+
+    def _run_events_reader():
+        # Starts the monitor thread
+        reporter.start()
+        # Waiting for the verification process to finish, either naturally or manually.
+        reporter.join()
+        # Signal the wx main event loop to exit
+        # wx.CallAfter(wx.GetApp().ExitMainLoop)
+
+    # Creates the application thread for controlling the monitor
+    application_thread = threading.Thread(target=_run_events_reader, daemon=True)
+    # Runs the application thread
+    application_thread.start()
+    # Initiating the wx main event loop
+    # app.MainLoop()
+    # Waiting for the application thread to finish
+    application_thread.join()
+
+
+# Exit codes:
+# -1: Input file error
+# -2: RabbitMQ configuration error
+# -3: Events reader error
+# -4: Unexpected error
+def main():
+    global logger
     # Argument processing
     parser = argparse.ArgumentParser(
         prog="The Events Reader for The Runtime Monitor",

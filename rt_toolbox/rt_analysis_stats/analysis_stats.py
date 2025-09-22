@@ -4,9 +4,7 @@
 
 import json
 import threading
-import signal
 import time
-# import wx
 import logging
 # Create a logger for the reporter component
 logger = logging.getLogger(__name__)
@@ -16,7 +14,6 @@ from rt_toolbox.rt_analysis_stats.config import config
 from rt_toolbox.rt_analysis_stats import rabbitmq_server_connections
 
 from rt_rabbitmq_wrapper.rabbitmq_utility import RabbitMQError
-
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_dict_codec import VerdictDictCoDec
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_codec_errors import (
     VerdictDictError,
@@ -32,44 +29,6 @@ from rt_rabbitmq_wrapper.exchange_types.verdict.verdict import (
     SymPyVerdict,
     SMT2Verdict
 )
-
-
-def rt_analysis_stats_runner(dest_file):
-    # Signal handling flags
-    signal_flags = {'stop': False, 'pause': False}
-
-    # Signal handling functions
-    def sigint_handler(signum, frame):
-        signal_flags['stop'] = True
-
-    def sigtstp_handler(signum, frame):
-        signal_flags['pause'] = not signal_flags['pause']  # Toggle pause state
-
-    # Registering signal handlers
-    signal.signal(signal.SIGINT, sigint_handler)
-    signal.signal(signal.SIGTSTP, sigtstp_handler)
-
-    # Initiating wx application
-    # app = wx.App()
-    # Create analysis stats
-    reporter = AnalysisStats(dest_file, signal_flags)
-
-    def _run_analysis_stats():
-        # Starts the monitor thread
-        reporter.start()
-        # Waiting for the verification process to finish, either naturally or manually.
-        reporter.join()
-        # Signal the wx main event loop to exit
-        # wx.CallAfter(wx.GetApp().ExitMainLoop)
-
-    # Creates the application thread for controlling the monitor
-    application_thread = threading.Thread(target=_run_analysis_stats, daemon=True)
-    # Runs the application thread
-    application_thread.start()
-    # Initiating the wx main event loop
-    # app.MainLoop()
-    # Waiting for the application thread to finish
-    application_thread.join()
 
 
 class AnalysisStats(threading.Thread):

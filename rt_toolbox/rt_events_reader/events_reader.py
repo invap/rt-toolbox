@@ -4,10 +4,8 @@
 
 import json
 import threading
-import signal
 import time
 import pika
-# import wx
 import logging
 # Create a logger for the reporter component
 logger = logging.getLogger(__name__)
@@ -23,44 +21,6 @@ from rt_rabbitmq_wrapper.exchange_types.event.event_codec_errors import (
     EventTypeError
 )
 from rt_rabbitmq_wrapper.rabbitmq_utility import RabbitMQError
-
-
-def rt_events_reader_runner(src_file):
-    # Signal handling flags
-    signal_flags = {'stop': False, 'pause': False}
-
-    # Signal handling functions
-    def sigint_handler(signum, frame):
-        signal_flags['stop'] = True
-
-    def sigtstp_handler(signum, frame):
-        signal_flags['pause'] = not signal_flags['pause']  # Toggle pause state
-
-    # Registering signal handlers
-    signal.signal(signal.SIGINT, sigint_handler)
-    signal.signal(signal.SIGTSTP, sigtstp_handler)
-
-    # Initiating wx application
-    # app = wx.App()
-    # Create reporter
-    reporter = EventsReader(src_file, signal_flags)
-
-    def _run_events_reader():
-        # Starts the monitor thread
-        reporter.start()
-        # Waiting for the verification process to finish, either naturally or manually.
-        reporter.join()
-        # Signal the wx main event loop to exit
-        # wx.CallAfter(wx.GetApp().ExitMainLoop)
-
-    # Creates the application thread for controlling the monitor
-    application_thread = threading.Thread(target=_run_events_reader, daemon=True)
-    # Runs the application thread
-    application_thread.start()
-    # Initiating the wx main event loop
-    # app.MainLoop()
-    # Waiting for the application thread to finish
-    application_thread.join()
 
 
 class EventsReader(threading.Thread):

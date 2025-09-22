@@ -1,6 +1,6 @@
 [project]
 name = "rt-toolbox"
-version = "2.8.0"
+version = "2.8.1"
 description = "This project contains an implementation of useful tools for The Runtime Monitor constalltion. The rationale behind this tools is that they play the role the extremities of The Runtime Monitor connected through RabbitMQ exchanges."
 authors = [
   {name = "Carlos Gustavo Lopez Pombo", email = "clpombo@gmail.com"}

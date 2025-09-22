@@ -3,10 +3,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Lopez-Pombo-Commercial
 
 import argparse
+import signal
+import threading
+# import wx
 import logging
+# Create a logger for the reporter component
+logger = None
 
 from rt_toolbox.rt_events_writer.errors.events_writer_errors import EventsWriterError
-from rt_toolbox.rt_events_writer.events_writer import rt_events_writer_runner
+from rt_toolbox.rt_events_writer.events_writer import EventsWriter
 from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
     is_valid_file_with_extension
@@ -20,6 +25,44 @@ from rt_toolbox.logging_configuration import (
     configure_logging_level
 )
 from rt_toolbox.rt_events_writer import rabbitmq_server_connections
+
+
+def rt_events_writer_runner(dest_file):
+    # Signal handling flags
+    signal_flags = {'stop': False, 'pause': False}
+
+    # Signal handling functions
+    def sigint_handler(signum, frame):
+        signal_flags['stop'] = True
+
+    def sigtstp_handler(signum, frame):
+        signal_flags['pause'] = not signal_flags['pause']  # Toggle pause state
+
+    # Registering signal handlers
+    signal.signal(signal.SIGINT, sigint_handler)
+    signal.signal(signal.SIGTSTP, sigtstp_handler)
+
+    # Initiating wx application
+    # app = wx.App()
+    # Create events writer
+    reporter = EventsWriter(dest_file, signal_flags)
+
+    def _run_events_writer():
+        # Starts the monitor thread
+        reporter.start()
+        # Waiting for the verification process to finish, either naturally or manually.
+        reporter.join()
+        # Signal the wx main event loop to exit
+        # wx.CallAfter(wx.GetApp().ExitMainLoop)
+
+    # Creates the application thread for controlling the monitor
+    application_thread = threading.Thread(target=_run_events_writer, daemon=True)
+    # Runs the application thread
+    application_thread.start()
+    # Initiating the wx main event loop
+    # app.MainLoop()
+    # Waiting for the application thread to finish
+    application_thread.join()
 
 
 # Exit codes:

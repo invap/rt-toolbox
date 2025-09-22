@@ -2,10 +2,16 @@
 # Copyright (c) 2025 INVAP, open@invap.com.ar
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Lopez-Pombo-Commercial
 
-import logging
 import argparse
+import threading
+import signal
+# import wx
+import logging
+# Create a logger for the reporter component
+logger = None # Will be initialized in main()
 
-from rt_toolbox.rt_results_logger.results_logger import rt_results_logger_runner
+from rt_toolbox.rt_results_logger.errors.results_logger_errors import ResultsLoggerError
+from rt_toolbox.rt_results_logger.results_logger import ResultsLogger
 from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
     is_valid_file_with_extension
@@ -21,12 +27,51 @@ from rt_toolbox.logging_configuration import (
 from rt_toolbox.rt_results_logger import rabbitmq_server_connections
 
 
+def rt_results_logger_runner(dest_file):
+    # Signal handling flags
+    signal_flags = {'stop': False, 'pause': False}
+
+    # Signal handling functions
+    def sigint_handler(signum, frame):
+        signal_flags['stop'] = True
+
+    def sigtstp_handler(signum, frame):
+        signal_flags['pause'] = not signal_flags['pause']  # Toggle pause state
+
+    # Registering signal handlers
+    signal.signal(signal.SIGINT, sigint_handler)
+    signal.signal(signal.SIGTSTP, sigtstp_handler)
+
+    # Initiating wx application
+    # app = wx.App()
+    # Create analysis stats
+    reporter = ResultsLogger(dest_file, signal_flags)
+
+    def _run_results_logger():
+        # Starts the monitor thread
+        reporter.start()
+        # Waiting for the verification process to finish, either naturally or manually.
+        reporter.join()
+        # Signal the wx main event loop to exit
+        # wx.CallAfter(wx.GetApp().ExitMainLoop)
+
+    # Creates the application thread for controlling the monitor
+    application_thread = threading.Thread(target=_run_results_logger, daemon=True)
+    # Runs the application thread
+    application_thread.start()
+    # Initiating the wx main event loop
+    # app.MainLoop()
+    # Waiting for the application thread to finish
+    application_thread.join()
+
+
 # Exit codes:
 # -1: Input file error
 # -2: RabbitMQ configuration error
 # -3: Results logger error
 # -4: Unexpected error
 def main():
+    global logger
     # Argument processing
     parser = argparse.ArgumentParser(
         prog="The Analysis Results logger for The Runtime Monitor.",
