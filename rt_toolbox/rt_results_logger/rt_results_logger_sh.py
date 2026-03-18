@@ -5,7 +5,6 @@
 import argparse
 import threading
 import signal
-# import wx
 import logging
 # Create a logger for the reporter component
 logger = None # Will be initialized in main()
