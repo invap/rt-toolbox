@@ -5,8 +5,10 @@
 import argparse
 import signal
 import threading
+
 # import wx
 import logging
+
 # Create a logger for the reporter component
 logger = None
 
@@ -17,26 +19,26 @@ from rt_toolbox.logging_configuration import (
     LoggingDestination,
     set_up_logging,
     configure_logging_destination,
-    configure_logging_level
+    configure_logging_level,
 )
 from rt_toolbox.rt_events_reader.errors.events_reader_errors import EventsReaderError
 from rt_toolbox.rt_events_reader.events_reader import EventsReader
 from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
-    is_valid_file_with_extension
+    is_valid_file_with_extension,
 )
 
 
 def rt_events_reader_runner(src_file):
     # Signal handling flags
-    signal_flags = {'stop': False, 'pause': False}
+    signal_flags = {"stop": False, "pause": False}
 
     # Signal handling functions
     def sigint_handler(signum, frame):
-        signal_flags['stop'] = True
+        signal_flags["stop"] = True
 
     def sigtstp_handler(signum, frame):
-        signal_flags['pause'] = not signal_flags['pause']  # Toggle pause state
+        signal_flags["pause"] = not signal_flags["pause"]  # Toggle pause state
 
     # Registering signal handlers
     signal.signal(signal.SIGINT, sigint_handler)
@@ -76,13 +78,29 @@ def main():
     parser = argparse.ArgumentParser(
         prog="The Events Reader for The Runtime Monitor",
         description="Reads events from a file and publishes them in the events exchange at a RabbitMQ server.",
-        epilog="Example: python -m rt_toolbox.rt_events_reader.rt_events_reader_sh /path/to/file --rabbitmq_config_file=./rabbitmq_config.toml --log_file=output.log --log_level=debug --timeout=120"
+        epilog="Example: python -m rt_toolbox.rt_events_reader.rt_events_reader_sh /path/to/file --rabbitmq_config_file=./rabbitmq_config.toml --log_file=output.log --log_level=debug --timeout=120",
     )
     parser.add_argument("src_file", type=str, help="Path to the file to be read.")
-    parser.add_argument("--rabbitmq_config_file", type=str, default='./rabbitmq_config.toml', help='Path to the TOML file containing the RabbitMQ server configuration.')
-    parser.add_argument("--log_level", type=str, choices=["debug", "info", "warnings", "errors", "critical"], default="info", help="Log verbosity level.")
-    parser.add_argument('--log_file', help='Path to log file.')
-    parser.add_argument("--timeout", type=int, default=0, help="Timeout for event acquisition from file in seconds (0 = no timeout).")
+    parser.add_argument(
+        "--rabbitmq_config_file",
+        type=str,
+        default="./rabbitmq_config.toml",
+        help="Path to the TOML file containing the RabbitMQ server configuration.",
+    )
+    parser.add_argument(
+        "--log_level",
+        type=str,
+        choices=["debug", "info", "warnings", "errors", "critical"],
+        default="info",
+        help="Log verbosity level.",
+    )
+    parser.add_argument("--log_file", help="Path to log file.")
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=0,
+        help="Timeout for event acquisition from file in seconds (0 = no timeout).",
+    )
     # Parse arguments
     args = parser.parse_args()
     # Set up the logging infrastructure
@@ -104,7 +122,7 @@ def main():
     if args.log_file is None:
         logging_destination = LoggingDestination.CONSOLE
     else:
-        valid_log_file = is_valid_file_with_extension_nex(args.log_file, 'log')
+        valid_log_file = is_valid_file_with_extension_nex(args.log_file, "log")
         if not valid_log_file:
             logging_destination = LoggingDestination.CONSOLE
         else:
@@ -123,7 +141,7 @@ def main():
         else:
             logger.info(f"Log destination: FILE ({args.log_file}).")
     # Validate and normalize the input file path
-    valid = is_valid_file_with_extension(args.src_file, 'any')
+    valid = is_valid_file_with_extension(args.src_file, "any")
     if not valid:
         logger.error(f"Input file error.")
         exit(-1)
@@ -136,9 +154,13 @@ def main():
     if not valid:
         logger.critical(f"RabbitMQ infrastructure configuration file error.")
         exit(-1)
-    logger.info(f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}")
+    logger.info(
+        f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}"
+    )
     # Create RabbitMQ communication infrastructure
-    rabbitmq_server_connections.build_rabbitmq_server_connections(args.rabbitmq_config_file)
+    rabbitmq_server_connections.build_rabbitmq_server_connections(
+        args.rabbitmq_config_file
+    )
     try:
         rt_events_reader_runner(args.src_file)
     except EventsReaderError:

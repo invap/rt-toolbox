@@ -6,6 +6,7 @@ import json
 import threading
 import time
 import logging
+
 # Create a logger for the reporter component
 logger = logging.getLogger(__name__)
 
@@ -14,10 +15,12 @@ from rt_toolbox.rt_analysis_stats.config import config
 from rt_toolbox.rt_analysis_stats import rabbitmq_server_connections
 
 from rt_rabbitmq_wrapper.rabbitmq_utility import RabbitMQError
-from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_dict_codec import VerdictDictCoDec
+from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_dict_codec import (
+    VerdictDictCoDec,
+)
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_codec_errors import (
     VerdictDictError,
-    VerdictTypeError
+    VerdictTypeError,
 )
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict import (
     ProcessVerdict,
@@ -27,7 +30,7 @@ from rt_rabbitmq_wrapper.exchange_types.verdict.verdict import (
     AnalysisVerdict,
     PyVerdict,
     SymPyVerdict,
-    SMT2Verdict
+    SMT2Verdict,
 )
 
 
@@ -42,7 +45,9 @@ class AnalysisStats(threading.Thread):
     # Raises: AnalysisStatsError
     def run(self):
         # Start receiving events from the RabbitMQ server
-        logger.info(f"Start receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+        logger.info(
+            f"Start receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+        )
         # Variables in the log analysis
         trace = []
         task_started = 0
@@ -62,19 +67,23 @@ class AnalysisStats(threading.Thread):
         timeout = False
         while not poison_received and not stop and not timeout:
             # Handle SIGINT
-            if self._signal_flags['stop']:
+            if self._signal_flags["stop"]:
                 logger.info("SIGINT received. Stopping the results reception process.")
                 stop = True
             # Handle SIGTSTP
-            if self._signal_flags['pause']:
+            if self._signal_flags["pause"]:
                 logger.info("SIGTSTP received. Pausing the results reception process.")
-                while self._signal_flags['pause'] and not self._signal_flags['stop']:
+                while self._signal_flags["pause"] and not self._signal_flags["stop"]:
                     time.sleep(1)  # Efficiently wait for signals
-                if self._signal_flags['stop']:
-                    logger.info("SIGINT received. Stopping the results reception process.")
+                if self._signal_flags["stop"]:
+                    logger.info(
+                        "SIGINT received. Stopping the results reception process."
+                    )
                     stop = True
-                if not self._signal_flags['pause']:
-                    logger.info("SIGTSTP received. Resuming the results reception process.")
+                if not self._signal_flags["pause"]:
+                    logger.info(
+                        "SIGTSTP received. Resuming the results reception process."
+                    )
             # Timeout handling for result reception
             if 0 < config.timeout < (time.time() - last_message_time):
                 timeout = True
@@ -82,29 +91,39 @@ class AnalysisStats(threading.Thread):
             if not stop and not timeout:
                 # Get result from RabbitMQ
                 try:
-                    method, properties, body = rabbitmq_server_connections.rabbitmq_results_log_server_connection.get_message()
+                    method, properties, body = (
+                        rabbitmq_server_connections.rabbitmq_results_log_server_connection.get_message()
+                    )
                 except RabbitMQError:
-                    logger.error(f"Error receiving analysis result from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+                    logger.error(
+                        f"Error receiving analysis result from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+                    )
                     raise AnalysisStatsError()
                 if method:  # Message exists
                     # Process message
-                    if properties.headers and properties.headers.get('termination'):
+                    if properties.headers and properties.headers.get("termination"):
                         # Poison pill received
-                        logger.info(f"Poison pill received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+                        logger.info(
+                            f"Poison pill received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+                        )
                         poison_received = True
                     else:
-                        if properties.headers and properties.headers.get('type'):
+                        if properties.headers and properties.headers.get("type"):
                             last_message_time = time.time()
-                            if properties.headers.get('type') == 'verdict':
+                            if properties.headers.get("type") == "verdict":
                                 # Verdict received
                                 verdict_dict = json.loads(body.decode())
                                 try:
                                     verdict = VerdictDictCoDec.from_dict(verdict_dict)
                                 except VerdictDictError:
-                                    logger.error(f"Error parsing verdict dictionary: {verdict_dict}.")
+                                    logger.error(
+                                        f"Error parsing verdict dictionary: {verdict_dict}."
+                                    )
                                     raise AnalysisStatsError()
                                 except VerdictTypeError:
-                                    logger.error(f"Error building dictionary from verdict: {verdict}.")
+                                    logger.error(
+                                        f"Error building dictionary from verdict: {verdict}."
+                                    )
                                     raise AnalysisStatsError()
                                 else:
                                     if isinstance(verdict, ProcessVerdict):
@@ -112,10 +131,14 @@ class AnalysisStats(threading.Thread):
                                             task_started += 1
                                         elif isinstance(verdict, TaskFinishedVerdict):
                                             task_finished += 1
-                                        elif isinstance(verdict, CheckpointReachedVerdict):
+                                        elif isinstance(
+                                            verdict, CheckpointReachedVerdict
+                                        ):
                                             checkpoints_reached += 1
                                         else:
-                                            logger.error(f"Invalid process verdict subtype: {verdict}.")
+                                            logger.error(
+                                                f"Invalid process verdict subtype: {verdict}."
+                                            )
                                             raise AnalysisStatsError()
                                         trace.append(verdict)
                                     elif isinstance(verdict, AnalysisVerdict):
@@ -127,7 +150,9 @@ class AnalysisStats(threading.Thread):
                                                 case PyVerdict.VERDICT.FAIL:
                                                     failed_props += 1
                                                 case _:
-                                                    logger.error(f"Invalid py analysis result: {verdict.verdict}.")
+                                                    logger.error(
+                                                        f"Invalid py analysis result: {verdict.verdict}."
+                                                    )
                                         elif isinstance(verdict, SymPyVerdict):
                                             match verdict.verdict:
                                                 case SymPyVerdict.VERDICT.PASS:
@@ -135,7 +160,9 @@ class AnalysisStats(threading.Thread):
                                                 case SymPyVerdict.VERDICT.FAIL:
                                                     failed_props += 1
                                                 case _:
-                                                    logger.error(f"Invalid sympy analysis result: {verdict.verdict}.")
+                                                    logger.error(
+                                                        f"Invalid sympy analysis result: {verdict.verdict}."
+                                                    )
                                         elif isinstance(verdict, SMT2Verdict):
                                             match verdict.verdict:
                                                 case SMT2Verdict.VERDICT.PASS:
@@ -145,12 +172,18 @@ class AnalysisStats(threading.Thread):
                                                 case SMT2Verdict.VERDICT.FAIL:
                                                     failed_props += 1
                                                 case _:
-                                                    logger.error(f"Invalid smt2 analysis result: {verdict.verdict}.")
+                                                    logger.error(
+                                                        f"Invalid smt2 analysis result: {verdict.verdict}."
+                                                    )
                                         else:
-                                            logger.error(f"Invalid analysis verdict subtype: {verdict}.")
+                                            logger.error(
+                                                f"Invalid analysis verdict subtype: {verdict}."
+                                            )
                                             raise AnalysisStatsError()
                                     else:
-                                        logger.error(f"Invalid verdict type: {verdict}.")
+                                        logger.error(
+                                            f"Invalid verdict type: {verdict}."
+                                        )
                                         raise AnalysisStatsError()
                                 # Log result reception
                                 logger.debug(f"Verdict received: {verdict}.")
@@ -159,16 +192,24 @@ class AnalysisStats(threading.Thread):
                             else:
                                 pass
                         else:
-                            logger.error(f"Result type received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port} missing.")
+                            logger.error(
+                                f"Result type received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port} missing."
+                            )
                             raise AnalysisStatsError()
                     # ACK the message
                     try:
-                        rabbitmq_server_connections.rabbitmq_results_log_server_connection.ack_message(method.delivery_tag)
+                        rabbitmq_server_connections.rabbitmq_results_log_server_connection.ack_message(
+                            method.delivery_tag
+                        )
                     except RabbitMQError:
-                        logger.error(f"Error sending ack to exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ event server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+                        logger.error(
+                            f"Error sending ack to exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ event server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+                        )
                         raise AnalysisStatsError()
         # Stop getting events from the RabbitMQ server
-        logger.info(f"Stop receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+        logger.info(
+            f"Stop receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+        )
         # Write the analysis results
         self._output_file.write("--------------- Analysis Statistics ---------------\n")
         self._output_file.write(f"Processed analysis results: {number_of_results}.\n")
@@ -181,17 +222,31 @@ class AnalysisStats(threading.Thread):
         self._output_file.write("---------------------------------------------------\n")
         self._output_file.write(f"Analyzed properties: {analyzed_props}.\n")
         if analyzed_props > 0:
-            self._output_file.write(f"PASSED properties: {passed_props} ({passed_props * 100 / analyzed_props:.2f}%).\n")
-            self._output_file.write(f"MIGHT FAIL properties: {might_fail_props} ({might_fail_props * 100 / analyzed_props:.2f}%).\n")
-            self._output_file.write(f"FAILED properties: {failed_props} ({failed_props * 100 / analyzed_props:.2f}%).\n")
+            self._output_file.write(
+                f"PASSED properties: {passed_props} ({passed_props * 100 / analyzed_props:.2f}%).\n"
+            )
+            self._output_file.write(
+                f"MIGHT FAIL properties: {might_fail_props} ({might_fail_props * 100 / analyzed_props:.2f}%).\n"
+            )
+            self._output_file.write(
+                f"FAILED properties: {failed_props} ({failed_props * 100 / analyzed_props:.2f}%).\n"
+            )
         self._output_file.write("---------------------------------------------------")
         self._output_file.flush()
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if poison_received:
-            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
+            logger.info(
+                f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received."
+            )
         elif stop:
-            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
+            logger.info(
+                f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received."
+            )
         elif timeout:
-            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, message reception timeout reached ({time.time()-last_message_time} secs.).")
+            logger.info(
+                f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, message reception timeout reached ({time.time()-last_message_time} secs.)."
+            )
         else:
-            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason.")
+            logger.info(
+                f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason."
+            )

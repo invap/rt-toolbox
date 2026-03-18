@@ -6,6 +6,7 @@ import json
 import threading
 import time
 import logging
+
 # Create a logger for the reporter component
 logger = logging.getLogger(__name__)
 
@@ -14,19 +15,23 @@ from rt_toolbox.rt_results_logger.config import config
 from rt_toolbox.rt_results_logger.errors.results_logger_errors import ResultsLoggerError
 
 from rt_rabbitmq_wrapper.rabbitmq_utility import RabbitMQError
-from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_dict_codec import VerdictDictCoDec
+from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_dict_codec import (
+    VerdictDictCoDec,
+)
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_codec_errors import (
     VerdictDictError,
-    VerdictTypeError
+    VerdictTypeError,
 )
-from rt_rabbitmq_wrapper.exchange_types.specification.specification_dict_codec import SpecificationDictCoDec
+from rt_rabbitmq_wrapper.exchange_types.specification.specification_dict_codec import (
+    SpecificationDictCoDec,
+)
 from rt_rabbitmq_wrapper.exchange_types.specification.specification_codec_errors import (
     SpecificationDictError,
-    SpecificationTypeError
+    SpecificationTypeError,
 )
 from rt_rabbitmq_wrapper.exchange_types.specification.specification import (
     PySpecification,
-    SymPySpecification
+    SymPySpecification,
 )
 
 
@@ -41,7 +46,9 @@ class ResultsLogger(threading.Thread):
     # Raises: ResultsLoggerError
     def run(self):
         # Start receiving verdicts from the RabbitMQ server
-        logger.info(f"Start receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+        logger.info(
+            f"Start receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+        )
         # initialize last_message_time for testing timeout
         last_message_time = time.time()
         start_time_epoch = time.time()
@@ -52,19 +59,23 @@ class ResultsLogger(threading.Thread):
         timeout = False
         while not poison_received and not stop and not timeout:
             # Handle SIGINT
-            if self._signal_flags['stop']:
+            if self._signal_flags["stop"]:
                 logger.info("SIGINT received. Stopping the results reception process.")
                 stop = True
             # Handle SIGTSTP
-            if self._signal_flags['pause']:
+            if self._signal_flags["pause"]:
                 logger.info("SIGTSTP received. Pausing the results reception process.")
-                while self._signal_flags['pause'] and not self._signal_flags['stop']:
+                while self._signal_flags["pause"] and not self._signal_flags["stop"]:
                     time.sleep(1)  # Efficiently wait for signals
-                if self._signal_flags['stop']:
-                    logger.info("SIGINT received. Stopping the results reception process.")
+                if self._signal_flags["stop"]:
+                    logger.info(
+                        "SIGINT received. Stopping the results reception process."
+                    )
                     stop = True
-                if not self._signal_flags['pause']:
-                    logger.info("SIGTSTP received. Resuming the results reception process.")
+                if not self._signal_flags["pause"]:
+                    logger.info(
+                        "SIGTSTP received. Resuming the results reception process."
+                    )
             # Timeout handling for result reception
             if 0 < config.timeout < (time.time() - last_message_time):
                 timeout = True
@@ -72,30 +83,42 @@ class ResultsLogger(threading.Thread):
             if not stop and not timeout:
                 # Get result from RabbitMQ
                 try:
-                    method, properties, body = rabbitmq_server_connections.rabbitmq_results_log_server_connection.get_message()
+                    method, properties, body = (
+                        rabbitmq_server_connections.rabbitmq_results_log_server_connection.get_message()
+                    )
                 except RabbitMQError:
-                    logger.critical(f"Error receiving analysis result from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+                    logger.critical(
+                        f"Error receiving analysis result from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+                    )
                     raise ResultsLoggerError()
                 if method:  # Message exists
                     # Process message
-                    if properties.headers and properties.headers.get('termination'):
+                    if properties.headers and properties.headers.get("termination"):
                         # Poison pill received
-                        logger.info(f"Poison pill received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+                        logger.info(
+                            f"Poison pill received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+                        )
                         poison_received = True
                     else:
-                        if properties.headers and properties.headers.get('type'):
+                        if properties.headers and properties.headers.get("type"):
                             last_message_time = time.time()
-                            match properties.headers.get('type'):
-                                case 'verdict':
+                            match properties.headers.get("type"):
+                                case "verdict":
                                     # Verdict received
                                     verdict_dict = json.loads(body.decode())
                                     try:
-                                        verdict = VerdictDictCoDec.from_dict(verdict_dict)
+                                        verdict = VerdictDictCoDec.from_dict(
+                                            verdict_dict
+                                        )
                                     except VerdictDictError:
-                                        logger.critical(f"Error parsing verdict dictionary: {verdict_dict}.")
+                                        logger.critical(
+                                            f"Error parsing verdict dictionary: {verdict_dict}."
+                                        )
                                         raise ResultsLoggerError()
                                     except VerdictTypeError:
-                                        logger.critical(f"Error building dictionary from verdict: {verdict}.")
+                                        logger.critical(
+                                            f"Error building dictionary from verdict: {verdict}."
+                                        )
                                         raise ResultsLoggerError()
                                     else:
                                         self._output_file.write(f"{verdict}")
@@ -105,45 +128,73 @@ class ResultsLogger(threading.Thread):
                                         logger.debug(f"Verdict received: {verdict}.")
                                         # Only increment number_of_results is it is a valid verdict (rules out poisson pill)
                                         number_of_results += 1
-                                case 'counterexample':
+                                case "counterexample":
                                     # Specification received
                                     spec_dict = json.loads(body.decode())
                                     try:
-                                        specification = SpecificationDictCoDec.from_dict(spec_dict)
+                                        specification = (
+                                            SpecificationDictCoDec.from_dict(spec_dict)
+                                        )
                                     except SpecificationDictError:
-                                        logger.critical(f"Error parsing specification dictionary: {spec_dict}.")
+                                        logger.critical(
+                                            f"Error parsing specification dictionary: {spec_dict}."
+                                        )
                                         raise ResultsLoggerError()
                                     except SpecificationTypeError:
-                                        logger.critical(f"Error building dictionary from specification: {specification}.")
+                                        logger.critical(
+                                            f"Error building dictionary from specification: {specification}."
+                                        )
                                         raise ResultsLoggerError()
                                     else:
-                                        if isinstance(specification, PySpecification) or isinstance(specification, SymPySpecification):
+                                        if isinstance(
+                                            specification, PySpecification
+                                        ) or isinstance(
+                                            specification, SymPySpecification
+                                        ):
                                             filename = f"{specification.property_name}@{specification.timestamp}.py"
-                                        else: # isinstance(specification, SMT2Specification)
+                                        else:  # isinstance(specification, SMT2Specification)
                                             filename = f"{specification.property_name}@{specification.timestamp}.smt2"
                                         with open(filename, "w") as spec_file:
                                             spec_file.write(specification.specification)
                                         spec_file.close()
                                 case _:
-                                    logger.critical(f"Result type received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port} invalid.")
+                                    logger.critical(
+                                        f"Result type received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port} invalid."
+                                    )
                                     raise ResultsLoggerError()
                         else:
-                            logger.critical(f"Result type received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port} missing.")
+                            logger.critical(
+                                f"Result type received from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port} missing."
+                            )
                             raise ResultsLoggerError()
                     # ACK the message
                     try:
-                        rabbitmq_server_connections.rabbitmq_results_log_server_connection.ack_message(method.delivery_tag)
+                        rabbitmq_server_connections.rabbitmq_results_log_server_connection.ack_message(
+                            method.delivery_tag
+                        )
                     except RabbitMQError:
-                        logger.critical(f"Error sending ack to exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ results log server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+                        logger.critical(
+                            f"Error sending ack to exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ results log server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+                        )
                         raise ResultsLoggerError()
         # Stop getting events from the RabbitMQ server
-        logger.info(f"Stop receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}.")
+        logger.info(
+            f"Stop receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_results_log_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_results_log_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_results_log_server_connection.server_info.port}."
+        )
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if poison_received:
-            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received.")
+            logger.info(
+                f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received."
+            )
         elif stop:
-            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received.")
+            logger.info(
+                f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received."
+            )
         elif timeout:
-            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, message reception timeout reached ({time.time()-last_message_time} secs.).")
+            logger.info(
+                f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, message reception timeout reached ({time.time()-last_message_time} secs.)."
+            )
         else:
-            logger.info(f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason.")
+            logger.info(
+                f"Processed analysis results: {number_of_results} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason."
+            )
