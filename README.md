@@ -225,7 +225,7 @@ python -c "import rt_toolbox"
 [Figure 1](#rt-toolbox-architecture) shows a high level view of the architecture of the RR. In it, we highlight the most relevant components and how they interact with each other and with the other agents of the RT-Constellation, through the RabbitMQ events exchange found in the RabbitMQ server configuration file.
 
 <figure id="rt-toolbox-architecture" style="text-align: center;">
-  <img src="./README_images/rt-toolbox-architecture.pdf" width="600" alt="The Runtime Toolbox architecture.">
+  <img src="./README_images/rt-toolbox-architecture.png" width="600" alt="The Runtime Toolbox architecture.">
   <figcaption style="font-style: italic;"><b>Figure 1</b>: The Runtime Toolbox architecture.
   </figcaption>
 </figure>
