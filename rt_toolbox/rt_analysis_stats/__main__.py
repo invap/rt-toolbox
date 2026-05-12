@@ -3,20 +3,20 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Lopez-Pombo-Commercial
 
 import argparse
-import threading
 import signal
+import sys
+import threading
 import logging
-
-# Create a logger for the reporter component
+# Create a logger for the component
 logger = None  # Will be initialized in main()
 
-from rt_toolbox.rt_results_logger.errors.results_logger_errors import ResultsLoggerError
-from rt_toolbox.rt_results_logger.results_logger import ResultsLogger
+from rt_toolbox.rt_analysis_stats.errors.analysis_stats_errors import AnalysisStatsError
 from rt_toolbox.utility import (
     is_valid_file_with_extension_nex,
     is_valid_file_with_extension,
 )
-from rt_toolbox.rt_results_logger.config import config
+from rt_toolbox.rt_analysis_stats.config import config
+from rt_toolbox.rt_analysis_stats.analysis_stats import AnalysisStats
 from rt_toolbox.logging_configuration import (
     LoggingLevel,
     LoggingDestination,
@@ -24,10 +24,10 @@ from rt_toolbox.logging_configuration import (
     configure_logging_destination,
     configure_logging_level,
 )
-from rt_toolbox.rt_results_logger import rabbitmq_server_connections
+from rt_toolbox.rt_analysis_stats import rabbitmq_server_connections
 
 
-def rt_results_logger_runner(dest_file):
+def rt_analysis_stats_runner(dest_file):
     # Signal handling flags
     signal_flags = {"stop": False, "pause": False}
 
@@ -45,9 +45,9 @@ def rt_results_logger_runner(dest_file):
     # Initiating wx application
     # app = wx.App()
     # Create analysis stats
-    reporter = ResultsLogger(dest_file, signal_flags)
+    reporter = AnalysisStats(dest_file, signal_flags)
 
-    def _run_results_logger():
+    def _run_analysis_stats():
         # Starts the monitor thread
         reporter.start()
         # Waiting for the verification process to finish, either naturally or manually.
@@ -56,7 +56,7 @@ def rt_results_logger_runner(dest_file):
         # wx.CallAfter(wx.GetApp().ExitMainLoop)
 
     # Creates the application thread for controlling the monitor
-    application_thread = threading.Thread(target=_run_results_logger, daemon=True)
+    application_thread = threading.Thread(target=_run_analysis_stats, daemon=True)
     # Runs the application thread
     application_thread.start()
     # Initiating the wx main event loop
@@ -65,18 +65,12 @@ def rt_results_logger_runner(dest_file):
     application_thread.join()
 
 
-# Exit codes:
-# -1: Input file error
-# -2: RabbitMQ configuration error
-# -3: Results logger error
-# -4: Unexpected error
-def main():
-    global logger
+def parse_arguments():
     # Argument processing
     parser = argparse.ArgumentParser(
-        prog="The Analysis Results logger for The Runtime Monitor.",
-        description="Logs the analysis results received from a RabbitMQ server to files.",
-        epilog="Example: python -m rt_toolbox.rt_results_logger.rt_results_logger_sh /path/to/file --rabbitmq_config_file=./rabbitmq_config.toml --log_level=debug --timeout=120",
+        prog="The Analysis statistics for The Runtime Monitor.",
+        description="Writes the results received from a RabbitMQ server to files.",
+        epilog="Example: python -m rt_toolbox.rt_analysis_stats.rt_analysis_stats_sh /path/to/file --rabbitmq_config_file=./rabbitmq_config.toml --log_file=output.log --log_level=debug --timeout=120",
     )
     parser.add_argument("dest_file", help="Log analysis file name.")
     parser.add_argument(
@@ -97,25 +91,31 @@ def main():
         "--timeout",
         type=int,
         default=0,
-        help="Timeout in seconds to wait for results after last received, from the RabbitMQ results log server (0 = no timeout).",
+        help="Timeout in seconds to wait for results after last received, from the RabbitMQ event server (0 = no timeout).",
     )
     # Parse arguments
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+# Exit codes:
+# -1: Input file error
+# -2: RabbitMQ configuration error
+# -3: Analysis stats error
+# -4: Unexpected error
+def main():
+    global logger
+    # Parse arguments
+    args = parse_arguments()
     # Set up the logging infrastructure
     # Configure logging level.
-    match args.log_level:
-        case "debug":
-            logging_level = LoggingLevel.DEBUG
-        case "info":
-            logging_level = LoggingLevel.INFO
-        case "warnings":
-            logging_level = LoggingLevel.WARNING
-        case "errors":
-            logging_level = LoggingLevel.ERROR
-        case "critical":
-            logging_level = LoggingLevel.CRITICAL
-        case _:
-            logging_level = LoggingLevel.INFO
+    level_map = {
+        "debug": LoggingLevel.DEBUG,
+        "info": LoggingLevel.INFO,
+        "warnings": LoggingLevel.WARNING,
+        "errors": LoggingLevel.ERROR,
+        "critical": LoggingLevel.CRITICAL,
+    }
+    logging_level = level_map.get(args.log_level, LoggingLevel.INFO)
     # Configure logging destination.
     if args.log_file is None:
         logging_destination = LoggingDestination.CONSOLE
@@ -129,7 +129,7 @@ def main():
     configure_logging_destination(logging_destination, args.log_file)
     configure_logging_level(logging_level)
     # Create a logger for the RabbitMQ utility component
-    logger = logging.getLogger("rt_toolbox.rt_results_logger.rt_results_logger_sh")
+    logger = logging.getLogger("rt_toolbox.rt_analysis_stats.rt_analysis_stats_sh")
     logger.info(f"Log verbosity level: {logging_level}.")
     if args.log_file is None:
         logger.info("Log destination: CONSOLE.")
@@ -143,11 +143,11 @@ def main():
         valid = is_valid_file_with_extension_nex(args.dest_file, "any")
         if not valid:
             logger.critical(f"Output log file error.")
-            exit(-1)
+            return -1
         dest_file = args.dest_file
     else:
-        dest_file = "./results_log.txt"
-    logger.info(f"Output analysis log file: {dest_file}")
+        dest_file = "./analysis_stats.txt"
+    logger.info(f"Output log analysis file: {dest_file}")
     # Determine timeout
     config.timeout = args.timeout if args.timeout >= 0 else 0
     logger.info(
@@ -157,7 +157,7 @@ def main():
     valid = is_valid_file_with_extension(args.rabbitmq_config_file, "toml")
     if not valid:
         logger.critical(f"RabbitMQ infrastructure configuration file error.")
-        exit(-1)
+        return -2
     logger.info(
         f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}"
     )
@@ -165,18 +165,19 @@ def main():
     rabbitmq_server_connections.build_rabbitmq_server_connections(
         args.rabbitmq_config_file
     )
-    # Run the rt_results_logger
+    # Run the rt_analysis_stats
     try:
-        rt_results_logger_runner(dest_file)
-    except ResultsLoggerError:
-        exit(-3)
+        rt_analysis_stats_runner(dest_file)
+    except AnalysisStatsError:
+        logger.critical("Analysis stats error.")
+        return -3
     except Exception as e:
         logger.critical(f"Unexpected error: {e}.")
-        exit(-4)
+        return -4
     # Close connection if it exists
     rabbitmq_server_connections.rabbitmq_results_log_server_connection.close()
-    exit(0)
+    return 0
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__":  
+    sys.exit(main())

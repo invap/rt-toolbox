@@ -4,13 +4,11 @@
 
 import argparse
 import signal
+import sys
 import threading
-
-# import wx
 import logging
-
-# Create a logger for the reporter component
-logger = None
+# Create a logger for the component
+logger = None  # Will be initialized in main()
 
 from rt_toolbox.rt_events_writer.errors.events_writer_errors import EventsWriterError
 from rt_toolbox.rt_events_writer.events_writer import EventsWriter
@@ -67,12 +65,7 @@ def rt_events_writer_runner(dest_file):
     application_thread.join()
 
 
-# Exit codes:
-# -1: Input file error
-# -2: RabbitMQ configuration error
-# -3: Events writer error
-# -4: Unexpected error
-def main():
+def parse_arguments():
     # Argument processing
     parser = argparse.ArgumentParser(
         prog="The Events Writer for The Runtime Reporter.",
@@ -101,7 +94,18 @@ def main():
         help="Timeout in seconds to wait for events after last received, from the RabbitMQ event server (0 = no timeout).",
     )
     # Parse arguments
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+# Exit codes:
+# -1: Input file error
+# -2: RabbitMQ configuration error
+# -3: Events writer error
+# -4: Unexpected error
+def main():
+    global logger
+    # Parse arguments
+    args = parse_arguments()
     # Set up the logging infrastructure
     # Configure logging level.
     match args.log_level:
@@ -144,7 +148,7 @@ def main():
         valid = is_valid_file_with_extension_nex(args.dest_file, "any")
         if not valid:
             logger.error(f"Output file error.")
-            exit(-1)
+            return -1
         dest_file = args.dest_file
     else:
         dest_file = "./output_file.txt"
@@ -158,7 +162,7 @@ def main():
     valid = is_valid_file_with_extension(args.rabbitmq_config_file, "toml")
     if not valid:
         logger.critical(f"RabbitMQ infrastructure configuration file error.")
-        exit(-2)
+        return -2
     logger.info(
         f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}"
     )
@@ -171,14 +175,14 @@ def main():
         rt_events_writer_runner(dest_file)
     except EventsWriterError:
         logger.critical("Events writer error.")
-        exit(-3)
+        return -3
     except Exception as e:
         logger.critical(f"Unexpected error: {e}.")
-        exit(-4)
+        return -4
     # Close connection if it exists
     rabbitmq_server_connections.rabbitmq_event_server_connection.close()
-    exit(0)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
