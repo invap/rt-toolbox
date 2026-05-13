@@ -70,24 +70,32 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         prog="The Analysis Results logger for The Runtime Monitor.",
         description="Logs the analysis results received from a RabbitMQ server to files.",
-        epilog="Example: python -m rt_toolbox.rt_results_logger.rt_results_logger_sh /path/to/file --rabbitmq_config_file=./rabbitmq_config.toml --log_level=debug --timeout=120",
+        epilog="Example: python -m rt_toolbox.rt_results_logger /path/to/file --rabbitmq-config-file=/path/to/rabbitmq/config/file.toml --log-level=debug --log-file=/path/to/log/file.log --timeout=120",
     )
     parser.add_argument("dest_file", help="Log analysis file name.")
     parser.add_argument(
-        "--rabbitmq_config_file",
+        "-r",
+        "--rabbitmq-config-file",
         type=str,
         default="./rabbitmq_config.toml",
         help="Path to the TOML file containing the RabbitMQ server configuration.",
     )
     parser.add_argument(
-        "--log_level",
+        "-ll",
+        "--log-level",
         type=str,
         choices=["debug", "info", "warnings", "errors", "critical"],
         default="info",
         help="Log verbosity level.",
     )
-    parser.add_argument("--log_file", help="Path to log file.")
     parser.add_argument(
+        "-lf",
+        "--log-file",
+        type=str,
+        help="Path to log file.",
+    )
+    parser.add_argument(
+        "-t",
         "--timeout",
         type=int,
         default=0,
