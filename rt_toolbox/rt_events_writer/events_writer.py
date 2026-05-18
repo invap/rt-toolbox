@@ -35,7 +35,7 @@ class EventsWriter(threading.Thread):
     def run(self):
         # Start receiving events from the RabbitMQ server
         logger.info(
-            f"Start receiving events from queue {rabbitmq_server_connections.rabbitmq_event_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+            f"Start receiving events from queue {rabbitmq_server_connections.rabbitmq_events_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
         )
         # initialize last_message_time for testing timeout
         last_message_time = time.time()
@@ -72,11 +72,11 @@ class EventsWriter(threading.Thread):
                 # Get event from RabbitMQ
                 try:
                     method, properties, body = (
-                        rabbitmq_server_connections.rabbitmq_event_server_connection.get_message()
+                        rabbitmq_server_connections.rabbitmq_events_server_connection.get_message()
                     )
                 except RabbitMQError:
                     logger.error(
-                        f"Error receiving event from queue {rabbitmq_server_connections.rabbitmq_event_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+                        f"Error receiving event from queue {rabbitmq_server_connections.rabbitmq_events_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
                     )
                     raise EventsWriterError()
                 if method:  # Message exists
@@ -84,7 +84,7 @@ class EventsWriter(threading.Thread):
                     if properties.headers and properties.headers.get("termination"):
                         # Poison pill received
                         logger.info(
-                            f"Poison pill received from queue {rabbitmq_server_connections.rabbitmq_event_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+                            f"Poison pill received from queue {rabbitmq_server_connections.rabbitmq_events_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
                         )
                         poison_received = True
                     else:
@@ -114,17 +114,17 @@ class EventsWriter(threading.Thread):
                             number_of_events += 1
                     # ACK the message
                     try:
-                        rabbitmq_server_connections.rabbitmq_event_server_connection.ack_message(
+                        rabbitmq_server_connections.rabbitmq_events_server_connection.ack_message(
                             method.delivery_tag
                         )
                     except RabbitMQError:
                         logger.error(
-                            f"Error sending ack to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ event server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+                            f"Error sending ack to exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ events server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
                         )
                         raise EventsWriterError()
         # Stop receiving messages from the RabbitMQ server
         logger.info(
-            f"Stop receiving events from queue {rabbitmq_server_connections.rabbitmq_event_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+            f"Stop receiving events from queue {rabbitmq_server_connections.rabbitmq_events_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
         )
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if poison_received:

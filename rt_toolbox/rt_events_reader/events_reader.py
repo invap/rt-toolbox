@@ -36,7 +36,7 @@ class EventsReader(threading.Thread):
     def run(self):
         # Start sending events to the RabbitMQ server
         logger.info(
-            f"Start sending events to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+            f"Start sending events to exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
         )
         # Start event acquisition from the file
         start_time_epoch = time.time()
@@ -79,7 +79,7 @@ class EventsReader(threading.Thread):
                 logger.info(f"Error building dictionary from event: [ {event} ].")
                 raise EventsReaderError()
             try:
-                rabbitmq_server_connections.rabbitmq_event_server_connection.publish_message(
+                rabbitmq_server_connections.rabbitmq_events_server_connection.publish_message(
                     json.dumps(event_dict, indent=4),
                     pika.BasicProperties(
                         delivery_mode=2,  # Persistent message
@@ -87,7 +87,7 @@ class EventsReader(threading.Thread):
                 )
             except RabbitMQError:
                 logger.info(
-                    f"Error sending event to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+                    f"Error sending event to exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
                 )
                 raise EventsReaderError()
             # Log event send
@@ -98,21 +98,21 @@ class EventsReader(threading.Thread):
             completed = True
         # Send poison pill with the events exchange at the RabbitMQ server
         try:
-            rabbitmq_server_connections.rabbitmq_event_server_connection.publish_message(
+            rabbitmq_server_connections.rabbitmq_events_server_connection.publish_message(
                 "", pika.BasicProperties(delivery_mode=2, headers={"termination": True})
             )
         except RabbitMQError:
             logger.critical(
-                f"Error sending poison pill to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+                f"Error sending poison pill to exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
             )
             raise EventsReaderError()
         else:
             logger.info(
-                f"Poison pill sent to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+                f"Poison pill sent to exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
             )
         # Stop publishing events to the RabbitMQ server
         logger.info(
-            f"Stop publishing events to exchange {rabbitmq_server_connections.rabbitmq_event_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_event_server_connection.server_info.port}."
+            f"Stop publishing events to exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
         )
         # Logging the reason for stoping the verification process to the RabbitMQ server
         if completed:
