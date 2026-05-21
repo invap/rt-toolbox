@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Lopez-Pombo-Commercial
 
 import json
+import os
 import threading
 import time
 import logging
@@ -39,7 +40,8 @@ class ResultsLogger(threading.Thread):
     def __init__(self, dest_file, signal_flags):
         super().__init__()
         # Open destination file and create a handler (dest_file is validated before)
-        self._output_file = open(dest_file, "w")
+        self._output_path, self._output_file = os.path.split(dest_file)
+        self._output_file = open(self._output_path + "/" + self._output_file, "w")
         # Signaling flags
         self._signal_flags = signal_flags
 
@@ -154,7 +156,7 @@ class ResultsLogger(threading.Thread):
                                             filename = f"{specification.property_name}@{specification.timestamp}.py"
                                         else:  # isinstance(specification, SMT2Specification)
                                             filename = f"{specification.property_name}@{specification.timestamp}.smt2"
-                                        with open(filename, "w") as spec_file:
+                                        with open(self._output_path + "/" + filename, "w") as spec_file:
                                             spec_file.write(specification.specification)
                                         spec_file.close()
                                 case _:
