@@ -7,7 +7,6 @@ import os
 import threading
 import time
 import logging
-
 # Create a logger for the reporter component
 logger = logging.getLogger(__name__)
 
@@ -18,6 +17,9 @@ from rt_toolbox.rt_results_logger.errors.results_logger_errors import ResultsLog
 from rt_rabbitmq_wrapper.rabbitmq_utility import RabbitMQError
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_dict_codec import (
     VerdictDictCoDec,
+)
+from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_csv_codec import (
+    VerdictCSVCoDec,
 )
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_codec_errors import (
     VerdictDictError,
@@ -41,7 +43,7 @@ class ResultsLogger(threading.Thread):
         super().__init__()
         # Open destination file and create a handler (dest_file is validated before)
         self._output_path, self._output_file = os.path.split(dest_file)
-        self._output_file = open(self._output_path + "/" + self._output_file, "w")
+        self._output_file = open(self._output_path + "/" + self._output_file, "wb")
         # Signaling flags
         self._signal_flags = signal_flags
 
@@ -109,9 +111,8 @@ class ResultsLogger(threading.Thread):
                                     # Verdict received
                                     verdict_dict = json.loads(body.decode())
                                     try:
-                                        verdict = VerdictDictCoDec.from_dict(
-                                            verdict_dict
-                                        )
+                                        verdict = VerdictDictCoDec.from_dict(verdict_dict)
+                                        verdict_csv = VerdictCSVCoDec.to_csv(verdict)
                                     except VerdictDictError:
                                         logger.critical(
                                             f"Error parsing verdict dictionary: {verdict_dict}."
@@ -123,8 +124,8 @@ class ResultsLogger(threading.Thread):
                                         )
                                         raise ResultsLoggerError()
                                     else:
-                                        self._output_file.write(f"{verdict}")
-                                        self._output_file.write("\n")
+                                        self._output_file.write(verdict_csv.encode("unicode_escape"))
+                                        self._output_file.write(b"\n")
                                         self._output_file.flush()
                                         # Log result reception
                                         logger.debug(f"Verdict received: {verdict}.")

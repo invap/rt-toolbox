@@ -6,7 +6,6 @@ import json
 import threading
 import time
 import logging
-
 # Create a logger for the reporter component
 logger = logging.getLogger(__name__)
 
@@ -109,7 +108,7 @@ class EventsWriter(threading.Thread):
                             self._output_file.write(b"\n")
                             self._output_file.flush()
                             # Log event received
-                            logger.debug(f"Received event: {event_dict}.")
+                            logger.debug(f"Received event: {event}.")
                             # Only increment number_of_events is it is a valid event (rules out poisson pill)
                             number_of_events += 1
                     # ACK the message

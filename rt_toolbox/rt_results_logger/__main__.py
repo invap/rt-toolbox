@@ -148,7 +148,7 @@ def main():
             logger.info(f"Log destination: FILE ({args.log_file}).")
     # Validate and normalize the log file path
     if args.dest_file is not None:
-        valid = is_valid_file_with_extension_nex(args.dest_file, "any")
+        valid = is_valid_file_with_extension_nex(args.dest_file, "csv")
         if not valid:
             logger.critical(f"Output log file error.")
             return -1

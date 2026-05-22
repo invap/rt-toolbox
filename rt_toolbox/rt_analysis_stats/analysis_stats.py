@@ -6,7 +6,6 @@ import json
 import threading
 import time
 import logging
-
 # Create a logger for the reporter component
 logger = logging.getLogger(__name__)
 
@@ -16,21 +15,19 @@ from rt_toolbox.rt_analysis_stats import rabbitmq_server_connections
 
 from rt_rabbitmq_wrapper.rabbitmq_utility import RabbitMQError
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_dict_codec import (
+    AnalysisVerdict,
+    CheckpointReachedVerdict,
+    ProcessVerdict,
+    PyVerdict,
+    SMT2Verdict,
+    SymPyVerdict,
+    TaskFinishedVerdict,
+    TaskStartedVerdict,
     VerdictDictCoDec,
 )
 from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_codec_errors import (
     VerdictDictError,
     VerdictTypeError,
-)
-from rt_rabbitmq_wrapper.exchange_types.verdict.verdict import (
-    ProcessVerdict,
-    TaskStartedVerdict,
-    TaskFinishedVerdict,
-    CheckpointReachedVerdict,
-    AnalysisVerdict,
-    PyVerdict,
-    SymPyVerdict,
-    SMT2Verdict,
 )
 
 
@@ -49,7 +46,7 @@ class AnalysisStats(threading.Thread):
             f"Start receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.port}."
         )
         # Variables in the log analysis
-        trace = []
+        # trace = []
         task_started = 0
         task_finished = 0
         checkpoints_reached = 0
@@ -140,7 +137,7 @@ class AnalysisStats(threading.Thread):
                                                 f"Invalid process verdict subtype: {verdict}."
                                             )
                                             raise AnalysisStatsError()
-                                        trace.append(verdict)
+                                        # trace.append(verdict)
                                     elif isinstance(verdict, AnalysisVerdict):
                                         analyzed_props += 1
                                         if isinstance(verdict, PyVerdict):
@@ -214,8 +211,8 @@ class AnalysisStats(threading.Thread):
         self._output_file.write("--------------- Analysis Statistics ---------------\n")
         self._output_file.write(f"Processed analysis results: {number_of_results}.\n")
         self._output_file.write("---------------------------------------------------\n")
-        self._output_file.write(f"Trace run: {trace}.\n")
-        self._output_file.write(f"Trace length (events): {len(trace)}.\n")
+        # self._output_file.write(f"Trace run: {trace}.\n")
+        # self._output_file.write(f"Trace length (events): {len(trace)}.\n")
         self._output_file.write(f"Tasks started: {task_started}.\n")
         self._output_file.write(f"Tasks finished: {task_finished}.\n")
         self._output_file.write(f"Checkpoints reached: {checkpoints_reached}.\n")
