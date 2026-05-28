@@ -44,65 +44,26 @@ def build_rabbitmq_server_connections(file_path):
     try:
         analysis_results_conf_dict = rabbitmq_exchange_dict["exchanges"]["analysis_results"]
     except KeyError:
-        (
-            host,
-            port,
-            user,
-            password,
-            connection_attempts,
-            retry_delay,
-            exchange,
-            exchange_type,
-        ) = (
-            "localhost",
-            5672,
-            "guest",
-            "guest",
-            5,
-            3,
-            "analysis_results_exchange",
-            "fanout",
-        )
+        (host, port, user, password, connection_attempts, retry_delay, exchange, exchange_type) = ("localhost", 5672, "guest", "guest", 5, 3, "analysis_results_exchange", "fanout")
     else:
-        host = (
-            analysis_results_conf_dict["host"]
-            if "host" in analysis_results_conf_dict
-            else "localhost"
-        )
+        host = analysis_results_conf_dict["host"] if "host" in analysis_results_conf_dict else "localhost"
         port = analysis_results_conf_dict["port"] if "port" in analysis_results_conf_dict else 5672
-        user = (
-            analysis_results_conf_dict["user"] if "user" in analysis_results_conf_dict else "guest"
-        )
-        password = (
-            analysis_results_conf_dict["password"]
-            if "password" in analysis_results_conf_dict
-            else "guest"
-        )
-        connection_attempts = (
-            analysis_results_conf_dict["connection_attempts"]
-            if "connection_attempts" in analysis_results_conf_dict
-            else 5
-        )
-        retry_delay = (
-            analysis_results_conf_dict["retry_delay"]
-            if "retry_delay" in analysis_results_conf_dict
-            else 3
-        )
-        exchange = (
-            analysis_results_conf_dict["name"]
-            if "name" in analysis_results_conf_dict
-            else "analysis_results_exchange"
-        )
-        exchange_type = (
-            analysis_results_conf_dict["exchange_type"]
-            if "exchange_type" in analysis_results_conf_dict
-            else "fanout"
-        )
+        user = analysis_results_conf_dict["user"] if "user" in analysis_results_conf_dict else "guest"
+        password = analysis_results_conf_dict["password"] if "password" in analysis_results_conf_dict else "guest"
+        connection_attempts = analysis_results_conf_dict["connection_attempts"] if "connection_attempts" in analysis_results_conf_dict else 5
+        retry_delay = analysis_results_conf_dict["retry_delay"] if "retry_delay" in analysis_results_conf_dict else 3
+        exchange = analysis_results_conf_dict["name"] if "name" in analysis_results_conf_dict else "analysis_results_exchange"
+        exchange_type = analysis_results_conf_dict["exchange_type"] if "exchange_type" in analysis_results_conf_dict else "fanout"
     finally:
         server_info = RabbitMQ_server_info(host, port, user, password)
-        rabbitmq_analysis_results_server_connection = RabbitMQ_server_incoming_connection(
-            server_info, connection_attempts, retry_delay, exchange, exchange_type
-        )
+        # Create the RabbitMQ analysis results server connection
+        try:
+            rabbitmq_analysis_results_server_connection = RabbitMQ_server_incoming_connection(
+                server_info, connection_attempts, retry_delay, exchange, exchange_type
+            )
+        except RabbitMQError:
+            logger.error(f"RabbitMQ analysis results server incoming connection creation error.")
+            exit(-2)
     # Connect to the RabbitMQ events server
     try:
         rabbitmq_analysis_results_server_connection.connect()
