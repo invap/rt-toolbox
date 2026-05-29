@@ -49,7 +49,7 @@ class EventsWriter(threading.Thread):
         while not control["poison_received"] and not control["signal_stop"] and not control["timeout_stop"]:
             # Check for signals and handle them accordingly
             EventsWriter._handle_signals(control, self._signal_flags)
-            # Check for termination due to timeout or negative verdict reception
+            # Check for termination due to timeout
             EventsWriter._check_timeout(control, last_message_time)
             # Process event only if temination has not been decided
             if not control["signal_stop"] and not control["timeout_stop"]:

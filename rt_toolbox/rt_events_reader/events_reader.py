@@ -50,7 +50,7 @@ class EventsReader(threading.Thread):
         for line in self._input_file:
             # Check for signals and handle them accordingly
             EventsReader._handle_signals(control, self._signal_flags)
-            # Check for termination due to timeout or negative verdict reception
+            # Check for termination due to timeout
             EventsReader._check_timeout(control, start_time_epoch)
             # Finish the process if any control variable establishes it
             if control["signal_stop"] or control["timeout_stop"]:
@@ -110,15 +110,15 @@ class EventsReader(threading.Thread):
             )
         elif control["signal_stop"]:
             logger.info(
-                f"Processed analysis results: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received."
+                f"Events read: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received."
             )
         elif control["timeout_stop"]:
             logger.info(
-                f"Processed analysis results: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, timeout reached ({time.time()-start_time_epoch} secs.)."
+                f"Events read: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, timeout reached ({time.time()-start_time_epoch} secs.)."
             )
         else:
             logger.info(
-                f"Processed analysis results: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason."
+                f"Events read: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason."
             )
 
     # Functions used to check termination of the monitoring process by signals or timeout. 
