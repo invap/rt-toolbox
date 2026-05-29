@@ -41,33 +41,18 @@ class EventsWriter(threading.Thread):
         start_time_epoch = time.time()
         number_of_events = 0
         # Control variables
-        poison_received = False
-        stop = False
-        abort = False
-        while not poison_received and not stop and not abort:
-            # Handle SIGINT
-            if self._signal_flags["stop"]:
-                logger.info("SIGINT received. Stopping the event reception process.")
-                stop = True
-            # Handle SIGTSTP
-            if self._signal_flags["pause"]:
-                logger.info("SIGTSTP received. Pausing the event reception process.")
-                while self._signal_flags["pause"] and not self._signal_flags["stop"]:
-                    time.sleep(1)  # Efficiently wait for signals
-                if self._signal_flags["stop"]:
-                    logger.info(
-                        "SIGINT received. Stopping the event reception process."
-                    )
-                    stop = True
-                if not self._signal_flags["pause"]:
-                    logger.info(
-                        "SIGTSTP received. Resuming the event reception process."
-                    )
-            # Timeout handling for event reception
-            if 0 < config.timeout < (time.time() - last_message_time):
-                abort = True
+        control = {
+            "poison_received": False,
+            "timeout_stop": False,
+            "signal_stop": False
+        }
+        while not control["poison_received"] and not control["signal_stop"] and not control["timeout_stop"]:
+            # Check for signals and handle them accordingly
+            EventsWriter._handle_signals(control, self._signal_flags)
+            # Check for termination due to timeout or negative verdict reception
+            EventsWriter._check_timeout(control, last_message_time)
             # Process event only if temination has not been decided
-            if not stop and not abort:
+            if not control["signal_stop"] and not control["timeout_stop"]:
                 # Get event from RabbitMQ
                 try:
                     method, properties, body = (
@@ -85,7 +70,7 @@ class EventsWriter(threading.Thread):
                         logger.info(
                             f"Poison pill received from queue {rabbitmq_server_connections.rabbitmq_events_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
                         )
-                        poison_received = True
+                        control["poison_received"] = True
                     else:
                         last_message_time = time.time()
                         # Event received
@@ -126,19 +111,47 @@ class EventsWriter(threading.Thread):
             f"Stop receiving events from queue {rabbitmq_server_connections.rabbitmq_events_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
         )
         # Logging the reason for stoping the verification process to the RabbitMQ server
-        if poison_received:
+        if control["poison_received"]:
             logger.info(
                 f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process COMPLETED, poison pill received."
             )
-        elif stop:
+        elif control["signal_stop"]:
             logger.info(
                 f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received."
             )
-        elif abort:
+        elif control["timeout_stop"]:
             logger.info(
-                f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, event reception timeout reached ({time.time()-last_message_time} secs.)."
+                f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, timeout reached ({time.time()-last_message_time} secs.)."
             )
         else:
             logger.info(
                 f"Written events: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason."
             )
+
+    # Functions used to check termination of the monitoring process by signals or timeout. 
+    # They update the control dictionary with the corresponding flags to indicate whether 
+    # the monitoring process should be stopped or not.
+    @staticmethod
+    def _handle_signals(control, signal_flags):
+        # Handle SIGINT
+        if signal_flags["stop"]:
+            logger.info("SIGINT received. Stopping the event reception process.")
+            control["signal_stop"] = True
+        # Handle SIGTSTP
+        if signal_flags["pause"]:
+            logger.info("SIGTSTP received. Pausing the event reception process.")
+            while signal_flags["pause"] and not signal_flags["stop"]:
+                time.sleep(1)  # Efficiently wait for signals
+            if signal_flags["stop"]:
+                logger.info("SIGINT received. Stopping the event reception process.")
+                control["signal_stop"] = True
+            if not signal_flags["pause"]:
+                logger.info("SIGTSTP received. Resuming the event reception process.")
+                control["signal_stop"] = False
+        control["signal_stop"] = False
+
+    @staticmethod
+    def _check_timeout(control, last_message_time):
+        if 0 < config.timeout < (time.time() - last_message_time):
+            control["timeout_stop"] = True
+

@@ -42,29 +42,18 @@ class EventsReader(threading.Thread):
         start_time_epoch = time.time()
         number_of_events = 0
         # Control variables
-        completed = False
-        stop = False
-        timeout = False
+        control = {
+            "eof_stop": False,
+            "timeout_stop": False,
+            "signal_stop": False
+        }
         for line in self._input_file:
-            # Handle SIGINT
-            if self._signal_flags["stop"]:
-                logger.info("SIGINT received. Stopping the file reading process.")
-                stop = True
-            # Handle SIGTSTP
-            if self._signal_flags["pause"]:
-                logger.info("SIGTSTP received. Pausing the file reading process.")
-                while self._signal_flags["pause"] and not self._signal_flags["stop"]:
-                    time.sleep(1)  # Efficiently wait for signals
-                if self._signal_flags["stop"]:
-                    logger.info("SIGINT received. Stopping the file reading process.")
-                    stop = True
-                if self._signal_flags["pause"]:
-                    logger.info("SIGTSTP received. Resuming the file reading process.")
-            # Timeout handling for event acquisition.
-            if config.timeout != 0 and time.time() - start_time_epoch >= config.timeout:
-                timeout = True
+            # Check for signals and handle them accordingly
+            EventsReader._handle_signals(control, self._signal_flags)
+            # Check for termination due to timeout or negative verdict reception
+            EventsReader._check_timeout(control, start_time_epoch)
             # Finish the process if any control variable establishes it
-            if stop or timeout:
+            if control["signal_stop"] or control["timeout_stop"]:
                 break
             event_csv = line.rstrip("\n\r")
             # Publish event at RabbitMQ server
@@ -95,7 +84,7 @@ class EventsReader(threading.Thread):
             # Only increment number_of_events is it is a valid event
             number_of_events += 1
         else:
-            completed = True
+            control["eof_stop"] = True
         # Send poison pill with the events exchange at the RabbitMQ server
         try:
             rabbitmq_server_connections.rabbitmq_events_server_connection.publish_message(
@@ -115,19 +104,46 @@ class EventsReader(threading.Thread):
             f"Stop publishing events to exchange {rabbitmq_server_connections.rabbitmq_events_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_events_server_connection.server_info.port}."
         )
         # Logging the reason for stoping the verification process to the RabbitMQ server
-        if completed:
+        if control["eof_stop"]:
             logger.info(
                 f"Events read: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, EOF reached."
             )
-        elif timeout:
+        elif control["signal_stop"]:
             logger.info(
-                f"Events read: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process COMPLETED, timeout reached."
+                f"Processed analysis results: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, SIGINT received."
             )
-        elif stop:
+        elif control["timeout_stop"]:
             logger.info(
-                f"Events read: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, SIGINT received."
+                f"Processed analysis results: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, timeout reached ({time.time()-start_time_epoch} secs.)."
             )
         else:
             logger.info(
-                f"Events read: {number_of_events} - Time (secs.): {time.time() - start_time_epoch:.3f} - Process STOPPED, unknown reason."
+                f"Processed analysis results: {number_of_events} - Time (secs.): {time.time()-start_time_epoch:.3f} - Process STOPPED, unknown reason."
             )
+
+    # Functions used to check termination of the monitoring process by signals or timeout. 
+    # They update the control dictionary with the corresponding flags to indicate whether 
+    # the monitoring process should be stopped or not.
+    @staticmethod
+    def _handle_signals(control, signal_flags):
+        # Handle SIGINT
+        if signal_flags["stop"]:
+            logger.info("SIGINT received. Stopping the event reception process.")
+            control["signal_stop"] = True
+        # Handle SIGTSTP
+        if signal_flags["pause"]:
+            logger.info("SIGTSTP received. Pausing the event reception process.")
+            while signal_flags["pause"] and not signal_flags["stop"]:
+                time.sleep(1)  # Efficiently wait for signals
+            if signal_flags["stop"]:
+                logger.info("SIGINT received. Stopping the event reception process.")
+                control["signal_stop"] = True
+            if not signal_flags["pause"]:
+                logger.info("SIGTSTP received. Resuming the event reception process.")
+                control["signal_stop"] = False
+        control["signal_stop"] = False
+
+    @staticmethod
+    def _check_timeout(control, start_time_epoch):
+        if 0 < config.timeout < (time.time() - start_time_epoch):
+            control["timeout_stop"] = True
