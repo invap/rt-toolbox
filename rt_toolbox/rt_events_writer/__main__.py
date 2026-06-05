@@ -7,8 +7,8 @@ import signal
 import sys
 import threading
 import logging
-# Create a logger for the component
-logger = None  # Will be initialized in main()
+# Create a logger for the component.
+logger = None  # Will be initialized in main().
 
 from rt_toolbox.rt_events_writer.errors.events_writer_errors import EventsWriterError
 from rt_toolbox.rt_events_writer.events_writer import EventsWriter
@@ -28,40 +28,44 @@ from rt_toolbox.rt_events_writer import rabbitmq_server_connections
 
 
 def rt_events_writer_runner(dest_file):
-    # Signal handling flags
-    signal_flags = {"stop": False, "pause": False}
+    # Signal handling flags.
+    signal_flags = {
+        "stop": threading.Event(), 
+        "pause": threading.Event()
+    }
 
-    # Signal handling functions
+    # Signal handling functions.
     def sigint_handler(signum, frame):
-        signal_flags["stop"] = True
+        signal_flags["stop"].set()
 
     def sigtstp_handler(signum, frame):
-        signal_flags["pause"] = not signal_flags["pause"]  # Toggle pause state
+        # Toggle pause state.
+        signal_flags["pause"].set() if not signal_flags["pause"].is_set() else signal_flags["pause"].clear()
 
     # Registering signal handlers
     signal.signal(signal.SIGINT, sigint_handler)
     signal.signal(signal.SIGTSTP, sigtstp_handler)
 
-    # Initiating wx application
+    # Initiating wx application.
     # app = wx.App()
-    # Create events writer
+    # Create events writer.
     reporter = EventsWriter(dest_file, signal_flags)
 
     def _run_events_writer():
-        # Starts the monitor thread
+        # Starts the monitor thread.
         reporter.start()
         # Waiting for the verification process to finish, either naturally or manually.
         reporter.join()
-        # Signal the wx main event loop to exit
+        # Signal the wx main event loop to exit.
         # wx.CallAfter(wx.GetApp().ExitMainLoop)
 
-    # Creates the application thread for controlling the monitor
+    # Creates the application thread for controlling the monitor.
     application_thread = threading.Thread(target=_run_events_writer, daemon=True)
-    # Runs the application thread
+    # Runs the application thread.
     application_thread.start()
-    # Initiating the wx main event loop
+    # Initiating the wx main event loop.
     # app.MainLoop()
-    # Waiting for the application thread to finish
+    # Waiting for the application thread to finish.
     application_thread.join()
 
 
@@ -112,9 +116,9 @@ def parse_arguments():
 # -4: Unexpected error
 def main():
     global logger
-    # Parse arguments
+    # Parse arguments.
     args = parse_arguments()
-    # Set up the logging infrastructure
+    # Set up the logging infrastructure.
     # Configure logging level.
     match args.log_level:
         case "debug":
@@ -161,24 +165,18 @@ def main():
     else:
         dest_file = "./output_file.txt"
     logger.info(f"Output file: {dest_file}")
-    # Determine timeout
+    # Determine timeout.
     config.timeout = args.timeout if args.timeout >= 0 else 0
-    logger.info(
-        f"Timeout for event reception from RabbitMQ server: {config.timeout} seconds."
-    )
-    # RabbitMQ infrastructure configuration
+    logger.info(f"Timeout for event reception from RabbitMQ server: {config.timeout} seconds.")
+    # RabbitMQ infrastructure configuration.
     valid = is_valid_file_with_extension(args.rabbitmq_config_file, "toml")
     if not valid:
         logger.critical(f"RabbitMQ infrastructure configuration file error.")
         return -2
-    logger.info(
-        f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}"
-    )
-    # Create RabbitMQ communication infrastructure
-    rabbitmq_server_connections.build_rabbitmq_server_connections(
-        args.rabbitmq_config_file
-    )
-    # Run the rt_events_writer
+    logger.info(f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}")
+    # Create RabbitMQ communication infrastructure.
+    rabbitmq_server_connections.build_rabbitmq_server_connections(args.rabbitmq_config_file)
+    # Run the rt_events_writer.
     try:
         rt_events_writer_runner(dest_file)
     except EventsWriterError:
@@ -187,8 +185,10 @@ def main():
     except Exception as e:
         logger.critical(f"Unexpected error: {e}.")
         return -4
-    # Close connection if it exists
-    rabbitmq_server_connections.rabbitmq_events_server_connection.close()
+    # Close connection if it exists.
+    rabbitmq_server_connections.rabbitmq_events_server_connection.close_channel()
+    rabbitmq_server_connections.rabbitmq_events_server_connection.close_connection()
+    # Exit with success code.
     return 0
 
 

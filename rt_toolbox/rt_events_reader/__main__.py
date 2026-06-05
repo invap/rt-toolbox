@@ -7,8 +7,8 @@ import signal
 import sys
 import threading
 import logging
-# Create a logger for the component
-logger = None  # Will be initialized in main()
+# Create a logger for the component.
+logger = None  # Will be initialized in main().
 
 from rt_toolbox.rt_events_reader.config import config
 from rt_toolbox.rt_events_reader import rabbitmq_server_connections
@@ -28,45 +28,49 @@ from rt_toolbox.utility import (
 
 
 def rt_events_reader_runner(src_file):
-    # Signal handling flags
-    signal_flags = {"stop": False, "pause": False}
+    # Signal handling flags.
+    signal_flags = {
+        "stop": threading.Event(), 
+        "pause": threading.Event()
+    }
 
-    # Signal handling functions
+    # Signal handling functions.
     def sigint_handler(signum, frame):
-        signal_flags["stop"] = True
+        signal_flags["stop"].set()
 
     def sigtstp_handler(signum, frame):
-        signal_flags["pause"] = not signal_flags["pause"]  # Toggle pause state
+        # Toggle pause state.
+        signal_flags["pause"].set() if not signal_flags["pause"].is_set() else signal_flags["pause"].clear()
 
-    # Registering signal handlers
+    # Registering signal handlers.
     signal.signal(signal.SIGINT, sigint_handler)
     signal.signal(signal.SIGTSTP, sigtstp_handler)
 
-    # Initiating wx application
+    # Initiating wx application.
     # app = wx.App()
     # Create reporter
     reporter = EventsReader(src_file, signal_flags)
 
     def _run_events_reader():
-        # Starts the monitor thread
+        # Starts the monitor thread.
         reporter.start()
         # Waiting for the verification process to finish, either naturally or manually.
         reporter.join()
-        # Signal the wx main event loop to exit
+        # Signal the wx main event loop to exit.
         # wx.CallAfter(wx.GetApp().ExitMainLoop)
 
-    # Creates the application thread for controlling the monitor
+    # Creates the application thread for controlling the monitor.
     application_thread = threading.Thread(target=_run_events_reader, daemon=True)
-    # Runs the application thread
+    # Runs the application thread.
     application_thread.start()
-    # Initiating the wx main event loop
+    # Initiating the wx main event loop.
     # app.MainLoop()
-    # Waiting for the application thread to finish
+    # Waiting for the application thread to finish.
     application_thread.join()
 
 
 def parse_arguments():
-    # Argument processing
+    # Argument processing.
     parser = argparse.ArgumentParser(
         prog="The Events Reader for The Runtime Monitor",
         description="Reads events from a file and publishes them in the events exchange at a RabbitMQ server.",
@@ -101,7 +105,7 @@ def parse_arguments():
         default=0,
         help="Timeout for event acquisition from file in seconds (0 = no timeout).",
     )
-    # Parse arguments
+    # Parse arguments.
     return parser.parse_args()
 
 
@@ -112,9 +116,9 @@ def parse_arguments():
 # -4: Unexpected error
 def main():
     global logger
-    # Parse arguments
+    # Parse arguments.
     args = parse_arguments()
-    # Set up the logging infrastructure
+    # Set up the logging infrastructure.
     # Configure logging level.
     match args.log_level:
         case "debug":
@@ -141,7 +145,7 @@ def main():
     set_up_logging()
     configure_logging_destination(logging_destination, args.log_file)
     configure_logging_level(logging_level)
-    # Create a logger for the RabbitMQ utility component
+    # Create a logger for the RabbitMQ utility component.
     logger = logging.getLogger("rt_toolbox.rt_events_reader.rt_events_reader_sh")
     logger.info(f"Log verbosity level: {logging_level}.")
     if args.log_file is None:
@@ -151,27 +155,23 @@ def main():
             logger.info("Log file error. Log destination: CONSOLE.")
         else:
             logger.info(f"Log destination: FILE ({args.log_file}).")
-    # Validate and normalize the input file path
+    # Validate and normalize the input file path.
     valid = is_valid_file_with_extension(args.src_file, "any")
     if not valid:
         logger.error(f"Input file error.")
         return -1
     logger.info(f"Input file: {args.src_file}")
-    # Determine timeout
+    # Determine timeout.
     config.timeout = args.timeout if args.timeout >= 0 else 0
     logger.info(f"Timeout for event read from file: {config.timeout} seconds.")
-    # RabbitMQ infrastructure configuration
+    # RabbitMQ infrastructure configuration.
     valid = is_valid_file_with_extension(args.rabbitmq_config_file, "toml")
     if not valid:
         logger.critical(f"RabbitMQ infrastructure configuration file error.")
         return -1
-    logger.info(
-        f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}"
-    )
-    # Create RabbitMQ communication infrastructure
-    rabbitmq_server_connections.build_rabbitmq_server_connections(
-        args.rabbitmq_config_file
-    )
+    logger.info(f"RabbitMQ infrastructure configuration file: {args.rabbitmq_config_file}")
+    # Create RabbitMQ communication infrastructure.
+    rabbitmq_server_connections.build_rabbitmq_server_connections(args.rabbitmq_config_file)
     try:
         rt_events_reader_runner(args.src_file)
     except EventsReaderError:
@@ -180,8 +180,10 @@ def main():
     except Exception as e:
         logger.critical(f"Unexpected error: {e}.")
         return -4
-    # Close connection if it exists
-    rabbitmq_server_connections.rabbitmq_events_server_connection.close()
+    # Close connection if it exists.
+    rabbitmq_server_connections.rabbitmq_events_server_connection.close_channel()
+    rabbitmq_server_connections.rabbitmq_events_server_connection.close_connection()
+    # Exit with success code.
     return 0
 
 

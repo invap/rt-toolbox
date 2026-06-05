@@ -6,8 +6,7 @@ import json
 import threading
 import time
 import logging
-
-# Create a logger for the reporter component
+# Create a logger for the reporter component.
 logger = logging.getLogger(__name__)
 
 from rt_toolbox.rt_analysis_stats.errors.analysis_stats_errors import AnalysisStatsError
@@ -35,9 +34,9 @@ from rt_rabbitmq_wrapper.exchange_types.verdict.verdict_codec_errors import (
 class AnalysisStats(threading.Thread):
     def __init__(self, dest_file, signal_flags):
         super().__init__()
-        # Open destination file and create a handler (dest_file is validated before)
+        # Open destination file and create a handler (dest_file is validated before).
         self._output_file = open(dest_file, "w")
-        # Signaling flags
+        # Signaling flags.
         self._signal_flags = signal_flags
 
     # Raises: AnalysisStatsError
@@ -79,61 +78,81 @@ class AnalysisStats(threading.Thread):
         # and with the pause flag if a SIGTSTP is received. The thread runs until the monitoring process should stop according to the 
         # control dictionary.
         #
-        # Funtions for determining whether the monitoring process should stop according to the reception of signals SIGINT and SIGTSTP.
-        @staticmethod
+        # Function for determining whether the monitoring process should stop according to the reception of signals SIGINT and SIGTSTP.
         def _check_signals():
-            while not control["should_stop"]():
-                # Handle SIGINT.
-                if self._signal_flags["stop"]:
+            # Handle SIGINT.
+            if self._signal_flags["stop"].is_set():
+                logger.info("SIGINT received. Stopping the event reception process.")
+                control["signal_stop"] = True
+            # Handle SIGTSTP.
+            if self._signal_flags["pause"].is_set():
+                logger.info("SIGTSTP received. Pausing the event reception process.")
+                while self._signal_flags["pause"].is_set() and not self._signal_flags["stop"].is_set():
+                    time.sleep(1/1000)  # Efficiently wait for signals.
+                if self._signal_flags["stop"].is_set():
                     logger.info("SIGINT received. Stopping the event reception process.")
                     control["signal_stop"] = True
-                # Handle SIGTSTP.
-                if self._signal_flags["pause"]:
-                    logger.info("SIGTSTP received. Pausing the event reception process.")
-                    while self._signal_flags["pause"] and not self._signal_flags["stop"]:
-                        time.sleep(1)  # Efficiently wait for signals.
-                    if self._signal_flags["stop"]:
-                        logger.info("SIGINT received. Stopping the event reception process.")
-                        control["signal_stop"] = True
-                    if not self._signal_flags["pause"]:
-                        logger.info("SIGTSTP received. Resuming the event reception process.")
-                time.sleep(1/100000)  # Sleep to avoid busy waiting.
-
+                if not self._signal_flags["pause"].is_set():
+                    logger.info("SIGTSTP received. Resuming the event reception process.")
+        #
+        # def _check_signals():
+        #     while not control["should_stop"]():
+        #         # Handle SIGINT.
+        #         if self._signal_flags["stop"].is_set():
+        #             logger.info("SIGINT received. Stopping the event reception process.")
+        #             control["signal_stop"] = True
+        #         # Handle SIGTSTP.
+        #         if self._signal_flags["pause"].is_set():
+        #             logger.info("SIGTSTP received. Pausing the event reception process.")
+        #             while self._signal_flags["pause"].is_set() and not self._signal_flags["stop"].is_set():
+        #                 time.sleep(1/1000)  # Efficiently wait for signals.
+        #             if self._signal_flags["stop"].is_set():
+        #                 logger.info("SIGINT received. Stopping the event reception process.")
+        #                 control["signal_stop"] = True
+        #             if not self._signal_flags["pause"].is_set():
+        #                 logger.info("SIGTSTP received. Resuming the event reception process.")
+        #         time.sleep(1/1000)  # Sleep to avoid busy waiting.
+        # 
         # Create the signal handler thread.
-        signal_thread = threading.Thread(
-            target=_check_signals,
-            args=(),
-            daemon=True
-        )
-        # -- END of signal handler thread infrastructure
+        # signal_thread = threading.Thread(
+        #     target=_check_signals,
+        #     args=(),
+        #     daemon=True
+        # )
+        # -- END of signal handler thread infrastructure.
 
         # Timeout checker thread infrastructure, which updates the control dictionary with the timeout_stop flag if the time elapsed since 
         # the reception of the last message exceeds the timeout specified in the configuration. The thread runs until the monitoring process 
         # should stop according to the control dictionary.
         #
-        # Function for determining whether the monitoring process should stop according to the timeout of message reception from the RabbitMQ 
+        # Function for determining whether the monitoring process should stop according to the timeout of message reception from the RabbitMQ
         # server.
-        @staticmethod
         def _check_timeout():
-            while not control["should_stop"]():
-                if 0 < config.timeout < (time.time() - last_message_time):
-                    control["timeout_stop"] = True
-                time.sleep(1/100000)  # Sleep to avoid busy waiting
-
+            if 0 < config.timeout < (time.time() - start_time_epoch):
+                control["timeout_stop"] = True
+                logger.info("Timeout reached. Stopping the event reception process.")
+        # 
+        # def _check_timeout():
+        #     while not control["should_stop"]():
+        #         if 0 < config.timeout < (time.time() - start_time_epoch):
+        #             control["timeout_stop"] = True
+        #             logger.info("Timeout reached. Stopping the event reception process.")
+        #         time.sleep(1/1000)  # Sleep to avoid busy waiting.
+        # 
         # Create the timeout checker thread.
-        timeout_thread = threading.Thread(
-            target=_check_timeout,
-            args=(),
-            daemon=True
-        )
+        # timeout_thread = threading.Thread(
+        #     target=_check_timeout,
+        #     args=(),
+        #     daemon=True
+        # )
         # -- END of timeout checker thread infrastructure
 
         # Start the threads for checking signals, timeout and verdicts for determining termination of the monitoring process.
         #
         # Start the thread checking signals.
-        signal_thread.start()
+        # signal_thread.start()
         # Start the thread checking timeout.
-        timeout_thread.start()
+        # timeout_thread.start()
 
         # Log the start of the reception of analysis results from the RabbitMQ server.
         #
@@ -143,29 +162,37 @@ class AnalysisStats(threading.Thread):
         # Main loop of the analysis statistics process, which receives analysis results from the RabbitMQ server and processes 
         # them until the control dictionary indicates that the monitoring process should stop.
         while not control["should_stop"]():
-            # Get result from RabbitMQ
+            # Update termination conditions.
+            _check_signals()
+            _check_timeout()
+            # Get result from RabbitMQ analysis results server connection. If an error occurs during the reception of the message, 
+            # a AnalysisStatsError is raised, which is not handled in this method and thus should be handled by the caller of the 
+            # run() method; if an error occurs during the sending of the ack to RabbitMQ, a AnalysisStatsError is raised, which is 
+            # not handled in this method and thus should be handled by the caller of the run() method. If no message is received 
+            # from RabbitMQ, the method returns None for method, properties and body, and in this case the loop continues after 
+            # sleeping for a short time to avoid busy waiting.
             try:
                 method, properties, body = rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.get_message()
             except RabbitMQError:
                 logger.error(f"Error receiving analysis result from queue {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.port}.")
                 raise AnalysisStatsError()
-            if method:  # Message exists
-                # ACK the message
+            if method:  # Message exists.
+                # ACK the message.
                 try:
                     rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.ack_message(method.delivery_tag)
                 except RabbitMQError:
                     logger.error(f"Error sending ack to exchange {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.exchange} at the RabbitMQ event server at {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.port}.")
                     raise AnalysisStatsError()
-                # Process message
+                # Process message.
                 if properties.headers and properties.headers.get("termination"):
-                    # Poison pill received
+                    # Poison pill received.
                     logger.info(f"Poison pill received from queue {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.port}.")
                     control["poison_received"] = True
                 else:
                     if properties.headers and properties.headers.get("type"):
                         last_message_time = time.time()
                         if properties.headers.get("type") == "verdict":
-                            # Verdict received
+                            # Verdict received.
                             verdict_dict = json.loads(body.decode())
                             try:
                                 verdict = VerdictDictCoDec.from_dict(verdict_dict)
@@ -225,7 +252,7 @@ class AnalysisStats(threading.Thread):
                                     raise AnalysisStatsError()
                             # Log result reception
                             logger.debug(f"Verdict received: {verdict}.")
-                            # Only increment number_of_results is it is a valid verdict (rules out poisson pill)
+                            # Only increment number_of_results is it is a valid verdict (rules out poisson pill).
                             number_of_results += 1
                         else:
                             pass # Only verdict messages are expected in the analysis results queue, so if the type header is not "verdict", the message is ignored and a log entry is created for that. This allows for ignoring unexpected messages without stopping the monitoring process, while still logging their reception for debugging purposes.
@@ -238,7 +265,7 @@ class AnalysisStats(threading.Thread):
 
         # Log the stop of the reception of analysis results from the RabbitMQ server.
         #
-        # Stop getting analysis results from the RabbitMQ server
+        # Stop getting analysis results from the RabbitMQ server.
         logger.info(f"Stop receiving analysis results from queue {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.queue_name} - exchange {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.exchange} at the RabbitMQ server at {rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.host}:{rabbitmq_server_connections.rabbitmq_analysis_results_server_connection.server_info.port}.")
 
         # Write the analysis results statistics to the output file.
@@ -280,6 +307,6 @@ class AnalysisStats(threading.Thread):
         # monitoring process should stop.
         #
         # Wait for the thread checking signals to finish.
-        signal_thread.join(timeout=5)
+        # signal_thread.join(timeout=5)
         # Wait for the thread checking timeout to finish.
-        timeout_thread.join(timeout=5)
+        # timeout_thread.join(timeout=5)
