@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "rt-toolbox"
@@ -20,8 +20,10 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/invap/rt-toolbox"
 
-[tool.setuptools.packages.find]
-include = ["rt_toolbox*"]
+[tool.poetry]
+packages = [
+    { include = "rt_toolbox" }
+]
 
 [dependency-groups]
 dev = [
